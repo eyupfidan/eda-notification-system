@@ -11,6 +11,7 @@ namespace App\Enums;
  *       │            │           │            └──► failed   (permanent failure / attempts exhausted)
  *       └────────────┴───────────┴──► cancelled
  *
+ *   queued ──► failed  (job gave up on unexpected errors)
  *   failed ──► queued  (manual retry)
  */
 enum Status: string
@@ -31,7 +32,7 @@ enum Status: string
         return match ($this) {
             self::Scheduled => [self::Pending, self::Queued, self::Cancelled],
             self::Pending => [self::Queued, self::Cancelled, self::Failed],
-            self::Queued => [self::Processing, self::Cancelled],
+            self::Queued => [self::Processing, self::Cancelled, self::Failed],
             self::Processing => [self::Sent, self::Queued, self::Failed],
             self::Failed => [self::Queued],
             self::Sent, self::Cancelled => [],

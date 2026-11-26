@@ -22,6 +22,39 @@ return [
     ],
 
     /*
+    | Automatic retries for temporary provider failures (timeouts, 5xx, 429).
+    | Delay before attempt n+1 = min(max_delay, base_delay * multiplier^(n-1)) ± jitter,
+    | and never shorter than the provider's Retry-After. Defaults: ~10s, 30s, 90s, 270s.
+    */
+    'retry' => [
+        'max_attempts' => (int) env('NOTIFICATION_MAX_ATTEMPTS', 5),
+        'base_delay' => (int) env('NOTIFICATION_RETRY_BASE_DELAY', 10),
+        'multiplier' => (float) env('NOTIFICATION_RETRY_MULTIPLIER', 3),
+        'max_delay' => (int) env('NOTIFICATION_RETRY_MAX_DELAY', 900),
+        'jitter' => 0.2,
+    ],
+
+    /*
+    | Per-channel circuit breaker: after `failure_threshold` consecutive temporary
+    | failures within `window` seconds, the channel pauses for `cooldown` seconds.
+    */
+    'circuit_breaker' => [
+        'failure_threshold' => (int) env('NOTIFICATION_CB_THRESHOLD', 10),
+        'window' => (int) env('NOTIFICATION_CB_WINDOW', 60),
+        'cooldown' => (int) env('NOTIFICATION_CB_COOLDOWN', 30),
+    ],
+
+    /*
+    | Recovery sweep (runs every minute): seconds after which a notification is
+    | considered stuck in a non-final state.
+    */
+    'recovery' => [
+        'pending_after' => 60,
+        'processing_after' => 120,
+        'queued_after' => 900,
+    ],
+
+    /*
     | External provider (simulated with webhook.site).
     */
     'provider' => [

@@ -76,4 +76,17 @@ class NotificationController extends Controller implements HasMiddleware
     {
         return NotificationResource::make($this->notifications->cancel($notification));
     }
+
+    /**
+     * Retry a failed notification.
+     *
+     * Re-queues a notification in `failed` status with a fresh attempt budget (202).
+     * Any other status returns 409.
+     */
+    public function retry(Notification $notification): JsonResponse
+    {
+        return NotificationResource::make($this->notifications->retry($notification))
+            ->response()
+            ->setStatusCode(202);
+    }
 }

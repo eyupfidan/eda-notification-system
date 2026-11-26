@@ -64,6 +64,27 @@ class BatchController extends Controller implements HasMiddleware
     }
 
     /**
+     * Retry failed notifications of a batch.
+     *
+     * Re-queues every `failed` notification of the batch with a fresh attempt budget.
+     */
+    public function retry(string $batchId): JsonResponse
+    {
+        if ($this->notifications->batchSummary($batchId) === null) {
+            abort(404, 'Batch not found.');
+        }
+
+        $retried = $this->notifications->retryBatch($batchId);
+
+        return response()->json([
+            'data' => [
+                'retried' => $retried,
+                ...$this->notifications->batchSummary($batchId),
+            ],
+        ], 202);
+    }
+
+    /**
      * Cancel a batch.
      *
      * Cancels every notification of the batch that has not started delivery yet.

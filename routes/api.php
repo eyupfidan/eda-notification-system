@@ -10,7 +10,9 @@ Route::prefix('v1')->group(function () {
     Route::post('notifications/batch', [BatchController::class, 'store']);
     Route::get('notifications/{notification}', [NotificationController::class, 'show'])->whereUuid('notification');
     Route::patch('notifications/{notification}/cancel', [NotificationController::class, 'cancel'])->whereUuid('notification');
+    Route::post('notifications/{notification}/retry', [NotificationController::class, 'retry'])->whereUuid('notification');
 
     Route::get('batches/{batchId}', [BatchController::class, 'show'])->whereUuid('batchId');
     Route::patch('batches/{batchId}/cancel', [BatchController::class, 'cancel'])->whereUuid('batchId');
+    Route::post('batches/{batchId}/retry', [BatchController::class, 'retry'])->whereUuid('batchId');
 });

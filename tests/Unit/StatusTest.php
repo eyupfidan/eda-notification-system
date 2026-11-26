@@ -20,6 +20,7 @@ class StatusTest extends TestCase
             'pending -> cancelled' => [Status::Pending, Status::Cancelled],
             'queued -> processing' => [Status::Queued, Status::Processing],
             'queued -> cancelled' => [Status::Queued, Status::Cancelled],
+            'queued -> failed (job gave up)' => [Status::Queued, Status::Failed],
             'processing -> sent' => [Status::Processing, Status::Sent],
             'processing -> queued (retry)' => [Status::Processing, Status::Queued],
             'processing -> failed' => [Status::Processing, Status::Failed],

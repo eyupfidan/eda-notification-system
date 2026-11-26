@@ -26,8 +26,10 @@ use Illuminate\Support\Carbon;
  * @property Priority $priority
  * @property Status $status
  * @property int $attempts
+ * @property int|null $attempt_limit
  * @property string|null $provider_message_id
  * @property string|null $last_error
+ * @property Carbon|null $next_retry_at
  * @property Carbon|null $scheduled_at
  * @property Carbon|null $queued_at
  * @property Carbon|null $sent_at
@@ -69,6 +71,8 @@ class Notification extends Model
             'status' => Status::class,
             'metadata' => 'array',
             'attempts' => 'integer',
+            'attempt_limit' => 'integer',
+            'next_retry_at' => 'datetime',
             'scheduled_at' => 'datetime',
             'queued_at' => 'datetime',
             'sent_at' => 'datetime',

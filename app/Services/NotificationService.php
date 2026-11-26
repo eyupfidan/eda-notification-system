@@ -17,6 +17,8 @@ use Illuminate\Support\Str;
 
 class NotificationService
 {
+    public function __construct(private readonly NotificationDispatcher $dispatcher) {}
+
     /** Rows per INSERT statement when storing a batch. */
     private const INSERT_CHUNK = 500;
 
@@ -136,6 +138,32 @@ class NotificationService
         }
 
         throw InvalidStatusTransition::between($notification->status, Status::Cancelled);
+    }
+
+    /**
+     * Manually re-queues a failed notification with a fresh attempt budget.
+     *
+     * @throws InvalidStatusTransition when the notification is not failed
+     */
+    public function retry(Notification $notification): Notification
+    {
+        if ($this->dispatcher->retryFailed([$notification->id]) === 1) {
+            return $notification->refresh();
+        }
+
+        $notification->refresh();
+
+        throw InvalidStatusTransition::between($notification->status, Status::Queued);
+    }
+
+    /**
+     * Re-queues every failed notification of the batch.
+     *
+     * @return int number of notifications re-queued
+     */
+    public function retryBatch(string $batchId): int
+    {
+        return $this->dispatcher->retryFailedInBatch($batchId);
     }
 
     /**
