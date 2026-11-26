@@ -4,8 +4,8 @@ FROM php:8.4-fpm-alpine
 RUN apk add --no-cache libpq icu-libs libzip \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS linux-headers postgresql-dev icu-dev libzip-dev \
     && docker-php-ext-install -j"$(nproc)" pdo_pgsql pcntl intl zip bcmath opcache \
-    && pecl install redis \
-    && docker-php-ext-enable redis \
+    && pecl install redis pcov \
+    && docker-php-ext-enable redis pcov \
     && apk del .build-deps \
     && rm -rf /tmp/pear
 

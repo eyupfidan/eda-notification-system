@@ -2,7 +2,7 @@
 COMPOSE := docker compose
 MOCK_URL := http://localhost:8090
 
-.PHONY: help up up-mock mock-stats mock-reset down build restart logs ps shell migrate fresh test
+.PHONY: help up up-mock mock-stats mock-reset down build restart logs ps shell migrate fresh test coverage
 
 help: ## List available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -45,3 +45,6 @@ fresh: ## Drop all tables and re-run migrations
 
 test: ## Run the test suite
 	$(COMPOSE) exec app php artisan test
+
+coverage: ## Run the test suite with a code coverage report
+	$(COMPOSE) exec app php -d pcov.enabled=1 vendor/bin/phpunit --coverage-text --only-summary-for-coverage-text

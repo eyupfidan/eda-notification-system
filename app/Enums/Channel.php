@@ -22,14 +22,6 @@ enum Channel: string
     }
 
     /**
-     * Whether the channel requires a subject/title.
-     */
-    public function requiresSubject(): bool
-    {
-        return $this === self::Email;
-    }
-
-    /**
      * @return list<string>
      */
     public static function values(): array

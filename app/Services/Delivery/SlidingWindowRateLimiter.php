@@ -46,9 +46,4 @@ class SlidingWindowRateLimiter
     {
         return (int) Redis::eval(self::SCRIPT, 1, $key, $windowMs, $limit, (string) Str::uuid7());
     }
-
-    public function clear(string $key): void
-    {
-        Redis::del($key);
-    }
 }
