@@ -40,6 +40,10 @@ x-app: &app
     REVERB_PORT: 8080
     REVERB_SCHEME: http
     REVERB_PUBLIC_PORT: ${REVERB_PUBLIC_PORT:-8085}
+    # Distributed tracing (OpenTelemetry → Jaeger)
+    OTEL_ENABLED: ${OTEL_ENABLED:-true}
+    OTEL_SERVICE_NAME: eda-notification-system
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     NOTIFICATION_RATE_LIMIT_PER_SECOND: ${NOTIFICATION_RATE_LIMIT_PER_SECOND:-100}
     NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-5}
     NOTIFICATION_RETRY_BASE_DELAY: ${NOTIFICATION_RETRY_BASE_DELAY:-10}
@@ -109,6 +113,13 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # Trace UI: http://localhost:16686 (OTLP/HTTP receiver on 4318)
+  jaeger:
+    image: jaegertracing/jaeger:2.11.0
+    restart: unless-stopped
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
 
   postgres:
     image: postgres:18-alpine

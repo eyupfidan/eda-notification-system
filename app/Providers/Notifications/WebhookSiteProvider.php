@@ -5,9 +5,12 @@ namespace App\Providers\Notifications;
 use App\Exceptions\Provider\PermanentProviderException;
 use App\Exceptions\Provider\RetryableProviderException;
 use App\Models\Notification;
+use App\Services\Tracing\Tracing;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Response;
+use OpenTelemetry\API\Trace\SpanInterface;
+use OpenTelemetry\API\Trace\SpanKind;
 
 /**
  * Sends notifications to the simulated provider (webhook.site).
@@ -21,6 +24,7 @@ class WebhookSiteProvider implements NotificationProvider
         private readonly HttpFactory $http,
         private readonly ?string $url,
         private readonly float $timeoutSeconds,
+        private readonly Tracing $tracing,
     ) {}
 
     public function send(Notification $notification): ProviderResponse
@@ -29,6 +33,16 @@ class WebhookSiteProvider implements NotificationProvider
             throw new PermanentProviderException('Provider URL is not configured (NOTIFICATION_PROVIDER_URL).');
         }
 
+        return $this->tracing->inSpan(
+            'POST provider',
+            fn (SpanInterface $span) => $this->call($notification, $span),
+            ['http.request.method' => 'POST', 'url.full' => $this->url, 'server.address' => parse_url($this->url, PHP_URL_HOST) ?: null],
+            SpanKind::KIND_CLIENT,
+        );
+    }
+
+    private function call(Notification $notification, SpanInterface $span): ProviderResponse
+    {
         try {
             $response = $this->http
                 ->timeout($this->timeoutSeconds)
@@ -39,6 +53,8 @@ class WebhookSiteProvider implements NotificationProvider
                     'Idempotency-Key' => $notification->id,
                     // End-to-end tracing across our logs and the provider's.
                     'X-Correlation-ID' => $notification->correlation_id,
+                    // W3C trace context: the provider's spans join our trace.
+                    ...$this->tracing->propagationHeaders(),
                 ]))
                 ->post($this->url, [
                     'to' => $notification->recipient,
@@ -48,6 +64,8 @@ class WebhookSiteProvider implements NotificationProvider
         } catch (ConnectionException $e) {
             throw new RetryableProviderException('Provider unreachable: '.$e->getMessage(), previous: $e);
         }
+
+        $span->setAttribute('http.response.status_code', $response->status());
 
         return $this->interpret($response);
     }

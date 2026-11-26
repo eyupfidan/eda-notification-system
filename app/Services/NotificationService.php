@@ -8,6 +8,7 @@ use App\Events\NotificationsAccepted;
 use App\Exceptions\IdempotencyConflict;
 use App\Exceptions\InvalidStatusTransition;
 use App\Models\Notification;
+use App\Services\Tracing\Tracing;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -34,6 +35,18 @@ class NotificationService
      * @throws IdempotencyConflict
      */
     public function create(array $data, ?string $idempotencyKey = null): CreationResult
+    {
+        return app(Tracing::class)->inSpan('notification.create', fn () => $this->doCreate($data, $idempotencyKey), [
+            'notification.channel' => $data['channel'] ?? null,
+            'notification.scheduled' => isset($data['scheduled_at']),
+            'notification.template' => isset($data['template_id']),
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function doCreate(array $data, ?string $idempotencyKey): CreationResult
     {
         if ($idempotencyKey !== null && $existing = $this->findByIdempotencyKey($idempotencyKey)) {
             return $this->replay($existing, $data, $idempotencyKey);
@@ -75,6 +88,16 @@ class NotificationService
      * @throws IdempotencyConflict
      */
     public function createBatch(array $items, ?string $idempotencyKey = null): BatchCreationResult
+    {
+        return app(Tracing::class)->inSpan('notification.create_batch', fn () => $this->doCreateBatch($items, $idempotencyKey), [
+            'notification.batch_size' => count($items),
+        ]);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     */
+    private function doCreateBatch(array $items, ?string $idempotencyKey): BatchCreationResult
     {
         if ($idempotencyKey !== null && $first = $this->findByIdempotencyKey($this->batchItemKey($idempotencyKey, 0))) {
             return $this->replayBatch($first->batch_id, $items, $idempotencyKey);

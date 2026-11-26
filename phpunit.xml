@@ -44,6 +44,7 @@
         <server name="QUEUE_CONNECTION" value="sync"/>
         <server name="REDIS_DB" value="15"/>
         <server name="BROADCAST_CONNECTION" value="null"/>
+        <server name="OTEL_ENABLED" value="false"/>
         <server name="NOTIFICATION_PROVIDER_URL" value="https://provider.test/notify"/>
     </php>
 </phpunit>

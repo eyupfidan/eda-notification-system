@@ -3,6 +3,7 @@
 use App\Exceptions\IdempotencyConflict;
 use App\Exceptions\InvalidStatusTransition;
 use App\Http\Middleware\AssignCorrelationId;
+use App\Http\Middleware\TraceRequests;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -33,7 +34,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->prepend(AssignCorrelationId::class);
+        // Correlation id first, so the request span can carry it.
+        $middleware->prepend([AssignCorrelationId::class, TraceRequests::class]);
     })
     ->withExceptions(function (Exceptions $exceptions) use ($apiError): void {
         $exceptions->shouldRenderJsonWhen(

@@ -39,15 +39,16 @@ refuses anything else and flushes Redis DB 15 before every test.
 | `app/Http/Controllers/Api/V1/` | `NotificationController`, `BatchController`, `TemplateController` (thin; delegate to services) |
 | `app/Http/Controllers/ObservabilityController.php` | `/metrics`, `/health` |
 | `app/Http/Requests/` | Validation. `Concerns/NotificationRules` holds the shared rules and the second pass (templates, email subject, length) |
-| `app/Http/Middleware/` | `AssignCorrelationId` (global), `ValidateIdempotencyKey` |
+| `app/Http/Middleware/` | `AssignCorrelationId`, `TraceRequests` (both global), `ValidateIdempotencyKey` |
 | `app/Services/NotificationService.php` | Create, batch, idempotency replay, cancel, retry, list, batch summary |
 | `app/Services/NotificationDispatcher.php` | **Every** transition into `queued` + job dispatch (`UPDATE … RETURNING`) |
 | `app/Services/Delivery/` | `RetryPolicy`, `CircuitBreaker`, `SlidingWindowRateLimiter` |
 | `app/Services/Templates/` | `TemplateRenderer`, `NotificationPayloadResolver` |
 | `app/Services/Realtime/StatusBroadcaster.php` | Best-effort WebSocket broadcasts |
 | `app/Services/Observability/` | `MetricsCollector`, `PrometheusFormatter`, `HealthChecker`, `Heartbeats` |
+| `app/Services/Tracing/` | `Tracing` (span helpers, W3C propagation), `TracerProviderFactory` (OTLP → Jaeger or no-op) |
 | `app/Jobs/SendNotificationJob.php` | Claim → send → sent / retry / failed |
-| `app/Jobs/Middleware/` | `SkipWhenCircuitOpen`, `RateLimitPerChannel` |
+| `app/Jobs/Middleware/` | `TraceJob`, `SkipWhenCircuitOpen`, `RateLimitPerChannel` |
 | `app/Listeners/` | `QueueAcceptedNotifications`, `RecordWorkerHeartbeat` |
 | `app/Events/` | `NotificationsAccepted` (after commit), `NotificationStatusChanged`, `BatchUpdated` (broadcast) |
 | `app/Models/` | `Notification` (state transitions), `NotificationAttempt`, `Template` |
@@ -55,6 +56,7 @@ refuses anything else and flushes Redis DB 15 before every test.
 | `app/Providers/Notifications/` | `NotificationProvider` contract, `WebhookSiteProvider` |
 | `app/Console/Commands/` | `notifications:dispatch-scheduled` (10 s), `notifications:recover` (1 min) |
 | `config/notifications.php` | All service tuning (limits, retry, circuit breaker, recovery, provider) |
+| `config/tracing.php` | OpenTelemetry on/off, OTLP endpoint, DB spans |
 | `docker/` | PHP-FPM image, nginx, Postgres init (test DB), mock provider |
 | `tests/` | PHPUnit feature + unit tests (one file per area) |
 
@@ -68,8 +70,9 @@ refuses anything else and flushes Redis DB 15 before every test.
    `queued → processing` before sending; this is what makes duplicate jobs harmless.
 3. **Provider errors must be classified:** throw `RetryableProviderException` (timeouts, 5xx, 429) or
    `PermanentProviderException` (other 4xx, malformed success). The retry policy depends on it.
-4. **Broadcasting is best effort.** Go through `StatusBroadcaster`; never let a WebSocket failure
-   break delivery.
+4. **Broadcasting and tracing are best effort.** Go through `StatusBroadcaster` / `Tracing`; never let
+   a WebSocket or tracing failure break delivery. New outgoing HTTP calls should run in a CLIENT span
+   (`Tracing::inSpan`) and forward `Tracing::propagationHeaders()`.
 5. **Idempotency keys stay in the unique column.** Batch items use `{key}#{index}`.
 6. **Dates are stored in UTC.** Normalise user-supplied times (with offsets) before saving.
 7. **Migrations are append-only.** Never edit a migration that has been committed; add a new one.

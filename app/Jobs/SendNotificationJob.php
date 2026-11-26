@@ -10,6 +10,7 @@ use App\Exceptions\Provider\ProviderException;
 use App\Exceptions\Provider\RetryableProviderException;
 use App\Jobs\Middleware\RateLimitPerChannel;
 use App\Jobs\Middleware\SkipWhenCircuitOpen;
+use App\Jobs\Middleware\TraceJob;
 use App\Models\Notification;
 use App\Providers\Notifications\NotificationProvider;
 use App\Providers\Notifications\ProviderResponse;
@@ -62,7 +63,7 @@ class SendNotificationJob implements ShouldQueue
      */
     public function middleware(): array
     {
-        return [new SkipWhenCircuitOpen, new RateLimitPerChannel];
+        return [new TraceJob, new SkipWhenCircuitOpen, new RateLimitPerChannel];
     }
 
     /**
