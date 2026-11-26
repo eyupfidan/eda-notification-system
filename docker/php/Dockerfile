@@ -19,7 +19,10 @@ COPY composer.json composer.lock ./
 RUN composer install --no-interaction --no-progress --prefer-dist --no-scripts --no-autoloader
 
 COPY . .
-RUN composer dump-autoload --optimize \
+# Configuration comes from container environment variables (docker-compose.yml);
+# an empty .env keeps dotenv from probing a missing file.
+RUN touch .env \
+    && composer dump-autoload --optimize \
     && php artisan package:discover --ansi \
     && chown -R www-data:www-data storage bootstrap/cache
 
