@@ -1,0 +1,115 @@
+name: eda-notification-system
+
+# Shared settings for every container that runs the Laravel codebase.
+# Values can be overridden from a local .env file or the shell environment.
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+  image: eda-notification-system:local
+  restart: unless-stopped
+  environment: &app-env
+    APP_NAME: "EDA Notification System"
+    APP_ENV: ${APP_ENV:-local}
+    # Local-development key only. Always override APP_KEY outside local environments.
+    APP_KEY: ${APP_KEY:-base64:2rqo7utE7JQjqvZN6mTJsfKBm0i7v0QbY4cx1X1cO70=}
+    APP_DEBUG: ${APP_DEBUG:-true}
+    APP_URL: ${APP_URL:-http://localhost:8080}
+    LOG_CHANNEL: stderr
+    LOG_LEVEL: ${LOG_LEVEL:-debug}
+    DB_CONNECTION: pgsql
+    DB_HOST: postgres
+    DB_PORT: 5432
+    DB_DATABASE: ${DB_DATABASE:-notifications}
+    DB_USERNAME: ${DB_USERNAME:-notifications}
+    DB_PASSWORD: ${DB_PASSWORD:-secret}
+    REDIS_CLIENT: phpredis
+    REDIS_HOST: redis
+    REDIS_PORT: 6379
+    QUEUE_CONNECTION: redis
+    CACHE_STORE: redis
+    SESSION_DRIVER: array
+    NOTIFICATION_PROVIDER_URL: ${NOTIFICATION_PROVIDER_URL:-}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *app
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 9000) ? 0 : 1);"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      app:
+        condition: service_healthy
+
+  worker:
+    <<: *app
+    environment:
+      <<: *app-env
+      RUN_MIGRATIONS: "false"
+    # Higher-priority queues are always drained first.
+    command: ["php", "artisan", "queue:work", "redis", "--queue=high,normal,low", "--sleep=1", "--max-time=3600"]
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+    depends_on:
+      app:
+        condition: service_healthy
+
+  scheduler:
+    <<: *app
+    environment:
+      <<: *app-env
+      RUN_MIGRATIONS: "false"
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      app:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-notifications}
+      POSTGRES_USER: ${DB_USERNAME:-notifications}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "${DB_FORWARD_PORT:-54320}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # AOF persistence so queued jobs survive a Redis restart.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-data:
+  redis-data:
