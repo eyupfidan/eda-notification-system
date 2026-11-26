@@ -14,6 +14,14 @@ return [
     'per_page_max' => 100,
 
     /*
+    | Maximum messages per second sent to the provider, per channel. Enforced with a
+    | Redis counter shared by all workers, so it holds no matter how many run.
+    */
+    'rate_limit' => [
+        'per_second' => (int) env('NOTIFICATION_RATE_LIMIT_PER_SECOND', 100),
+    ],
+
+    /*
     | External provider (simulated with webhook.site).
     */
     'provider' => [
