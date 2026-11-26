@@ -6,6 +6,7 @@ use App\Enums\Channel;
 use App\Enums\Priority;
 use App\Jobs\Middleware\RateLimitPerChannel;
 use App\Jobs\SendNotificationJob;
+use App\Services\Delivery\SlidingWindowRateLimiter;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -73,6 +74,30 @@ class RateLimitPerChannelTest extends TestCase
         [$push] = $this->runThroughLimiter(Channel::Push, 2);
 
         $this->assertSame([3, 3, 2], [$sms, $email, $push]);
+    }
+
+    public function test_the_limit_holds_for_any_one_second_span_not_just_calendar_seconds(): void
+    {
+        $this->runThroughLimiter(Channel::Sms, 3);
+
+        // 0.6s later a fixed window may already have rolled over; a sliding window must not.
+        usleep(600_000);
+        [$stillBlocked, [$job]] = $this->runThroughLimiter(Channel::Sms, 1);
+
+        $this->assertSame(0, $stillBlocked);
+        $this->assertSame(1, $job->releasedFor, 'Released until the oldest slot expires (~0.4s, rounded up to 1s).');
+    }
+
+    public function test_the_limiter_reports_how_long_to_wait(): void
+    {
+        $limiter = app(SlidingWindowRateLimiter::class);
+        $key = RateLimitPerChannel::KEY_PREFIX.'sms';
+
+        $this->assertSame(0, $limiter->attempt($key, 1));
+        $wait = $limiter->attempt($key, 1);
+
+        $this->assertGreaterThan(0, $wait);
+        $this->assertLessThanOrEqual(1000, $wait);
     }
 
     public function test_the_budget_resets_after_one_second(): void

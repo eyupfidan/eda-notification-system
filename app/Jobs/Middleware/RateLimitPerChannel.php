@@ -3,13 +3,14 @@
 namespace App\Jobs\Middleware;
 
 use App\Jobs\SendNotificationJob;
+use App\Services\Delivery\SlidingWindowRateLimiter;
 use Closure;
-use Illuminate\Support\Facades\Redis;
 
 /**
  * Caps provider calls at N per second per channel across *all* workers, using a
- * Redis-backed fixed one-second window. A job over the limit is not failed: it is
- * released back to its queue for a second, keeping its "queued" status.
+ * Redis sliding window (never more than N in any one-second span). A job over the
+ * limit is not failed: it is released back to its queue until a slot frees up,
+ * keeping its "queued" status and its delivery attempts.
  */
 class RateLimitPerChannel
 {
@@ -17,13 +18,18 @@ class RateLimitPerChannel
 
     public function handle(SendNotificationJob $job, Closure $next): void
     {
-        Redis::throttle(self::KEY_PREFIX.$job->channel->value)
-            ->allow((int) config('notifications.rate_limit.per_second'))
-            ->every(1)
-            ->block(0)
-            ->then(
-                fn () => $next($job),
-                fn () => $job->release(1),
-            );
+        $waitMs = app(SlidingWindowRateLimiter::class)->attempt(
+            self::KEY_PREFIX.$job->channel->value,
+            (int) config('notifications.rate_limit.per_second'),
+        );
+
+        if ($waitMs > 0) {
+            // Queue delays have one-second granularity.
+            $job->release((int) max(1, ceil($waitMs / 1000)));
+
+            return;
+        }
+
+        $next($job);
     }
 }

@@ -116,6 +116,29 @@ services:
       timeout: 3s
       retries: 20
 
+  # Optional local provider for load / failure testing (no request quota):
+  #   make up-mock    (or: NOTIFICATION_PROVIDER_URL=http://mock-provider:8000/notify docker compose --profile mock up -d)
+  mock-provider:
+    image: php:8.4-cli-alpine
+    profiles: ["mock"]
+    restart: unless-stopped
+    command: ["php", "-S", "0.0.0.0:8000", "/mock/server.php"]
+    environment:
+      PHP_CLI_SERVER_WORKERS: 16
+      MOCK_FAILURE_RATE: ${MOCK_FAILURE_RATE:-0}
+      MOCK_RATE_LIMIT_RATE: ${MOCK_RATE_LIMIT_RATE:-0}
+      MOCK_TIMEOUT_RATE: ${MOCK_TIMEOUT_RATE:-0}
+      MOCK_LATENCY_MS: ${MOCK_LATENCY_MS:-20-80}
+    volumes:
+      - ./docker/mock-provider:/mock:ro
+    ports:
+      - "${MOCK_PORT:-8090}:8000"
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8000/health') ? 0 : 1);"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   postgres-data:
   redis-data:

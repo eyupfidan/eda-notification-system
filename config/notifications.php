@@ -15,7 +15,8 @@ return [
 
     /*
     | Maximum messages per second sent to the provider, per channel. Enforced with a
-    | Redis counter shared by all workers, so it holds no matter how many run.
+    | Redis sliding window shared by all workers: never more than this many in any
+    | one-second span, no matter how many workers run.
     */
     'rate_limit' => [
         'per_second' => (int) env('NOTIFICATION_RATE_LIMIT_PER_SECOND', 100),
