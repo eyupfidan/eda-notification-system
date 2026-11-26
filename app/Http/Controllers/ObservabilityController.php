@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 
-#[Group('Observability', weight: 2)]
+#[Group('Observability', weight: 3)]
 class ObservabilityController extends Controller
 {
     /**

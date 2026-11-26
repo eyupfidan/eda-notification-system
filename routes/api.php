@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\BatchController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\TemplateController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -15,4 +16,7 @@ Route::prefix('v1')->group(function () {
     Route::get('batches/{batchId}', [BatchController::class, 'show'])->whereUuid('batchId');
     Route::patch('batches/{batchId}/cancel', [BatchController::class, 'cancel'])->whereUuid('batchId');
     Route::post('batches/{batchId}/retry', [BatchController::class, 'retry'])->whereUuid('batchId');
+
+    Route::apiResource('templates', TemplateController::class)->whereUuid('template');
+    Route::post('templates/{template}/preview', [TemplateController::class, 'preview'])->whereUuid('template');
 });

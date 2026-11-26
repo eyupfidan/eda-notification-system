@@ -55,7 +55,7 @@ class NotificationController extends Controller implements HasMiddleware
     public function store(StoreNotificationRequest $request): JsonResponse
     {
         $result = $this->notifications->create(
-            $request->validated(),
+            $request->payload(),
             $request->header(ValidateIdempotencyKey::HEADER),
         );
 

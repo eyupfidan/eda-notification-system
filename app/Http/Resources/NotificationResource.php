@@ -25,6 +25,8 @@ class NotificationResource extends JsonResource
             'subject' => $this->subject,
             'content' => $this->content,
             'metadata' => $this->metadata,
+            'template_id' => $this->template_id,
+            'template_variables' => $this->template_variables,
             'priority' => $this->priority,
             'status' => $this->status,
             'attempts' => $this->attempts,

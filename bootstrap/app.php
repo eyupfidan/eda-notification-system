@@ -49,7 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (NotFoundHttpException $e, Request $request) use ($apiError) {
             if ($request->is('api/*', 'metrics', 'health')) {
                 $message = match (true) {
-                    $e->getPrevious() instanceof ModelNotFoundException => 'Notification not found.',
+                    $e->getPrevious() instanceof ModelNotFoundException => class_basename($e->getPrevious()->getModel()).' not found.',
                     $e->getMessage() !== '' => $e->getMessage(),
                     default => 'Resource not found.',
                 };

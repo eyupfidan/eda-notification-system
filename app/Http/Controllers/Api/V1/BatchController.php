@@ -39,7 +39,7 @@ class BatchController extends Controller implements HasMiddleware
     public function store(StoreBatchRequest $request): JsonResponse
     {
         $result = $this->notifications->createBatch(
-            $request->validated('notifications'),
+            $request->payloads(),
             $request->header(ValidateIdempotencyKey::HEADER),
         );
 

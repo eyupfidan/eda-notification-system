@@ -91,6 +91,7 @@ class NotificationService
             'correlation_id' => $correlationId,
             ...$this->attributes($item),
             'metadata' => isset($item['metadata']) ? json_encode($item['metadata']) : null,
+            'template_variables' => isset($item['variables']) ? json_encode($item['variables']) : null,
             'status' => $this->initialStatus($this->attributes($item))->value,
             'attempts' => 0,
             'created_at' => $now,
@@ -116,6 +117,7 @@ class NotificationService
         $notifications = collect($rows)->map(fn (array $row) => (new Notification)->forceFill([
             ...$row,
             'metadata' => $row['metadata'] !== null ? json_decode($row['metadata'], true) : null,
+            'template_variables' => $row['template_variables'] !== null ? json_decode($row['template_variables'], true) : null,
         ]));
 
         return new BatchCreationResult($batchId, $notifications, replayed: false);
@@ -254,6 +256,8 @@ class NotificationService
             'content' => $data['content'],
             'metadata' => $data['metadata'] ?? null,
             'priority' => $data['priority'] ?? Priority::Normal->value,
+            'template_id' => $data['template_id'] ?? null,
+            'template_variables' => $data['variables'] ?? null,
             'scheduled_at' => $this->scheduledAt($data['scheduled_at'] ?? null),
         ];
     }

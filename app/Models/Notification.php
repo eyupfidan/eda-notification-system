@@ -16,6 +16,8 @@ use Illuminate\Support\Carbon;
 /**
  * @property string $id
  * @property string|null $batch_id
+ * @property string|null $template_id
+ * @property array<string, mixed>|null $template_variables
  * @property string|null $idempotency_key
  * @property string|null $correlation_id
  * @property Channel $channel
@@ -52,6 +54,8 @@ class Notification extends Model
         'subject',
         'content',
         'metadata',
+        'template_id',
+        'template_variables',
         'priority',
         'status',
         'scheduled_at',
@@ -70,6 +74,7 @@ class Notification extends Model
             'priority' => Priority::class,
             'status' => Status::class,
             'metadata' => 'array',
+            'template_variables' => 'array',
             'attempts' => 'integer',
             'attempt_limit' => 'integer',
             'next_retry_at' => 'datetime',

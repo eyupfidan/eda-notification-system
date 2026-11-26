@@ -9,7 +9,7 @@
 ![Laravel](https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-147%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-162%20passing-2ea44f)
 ![Coverage](https://img.shields.io/badge/coverage-99.5%25-2ea44f)
 
 <img src="docs/architecture.svg" alt="Architecture" width="900">
@@ -20,6 +20,7 @@
 
 - **Async by design:** the API stores notifications and answers `202`. Queue workers deliver them.
 - **Batches** of up to 1000 notifications, stored atomically (all or nothing).
+- **Templates** with `{{ variables }}`: send `template_id` + `variables` instead of `content`.
 - **Scheduled delivery:** set `scheduled_at` (ISO 8601, up to 30 days ahead) and the notification is sent at that time, give or take 10 s.
 - **Priority queues** (`high > normal > low`) and a strict **100 msg/s per channel** limit shared by all workers.
 - **No duplicates:** `Idempotency-Key` support, atomic claiming of each delivery, idempotency key forwarded to the provider.
@@ -64,12 +65,17 @@ echo "NOTIFICATION_PROVIDER_URL=https://webhook.site/<your-uuid>" > .env && dock
 | `PATCH` | `/api/v1/notifications/{id}/cancel` | Cancel before delivery starts |
 | `POST` | `/api/v1/notifications/{id}/retry` | Retry a failed notification |
 | `GET` · `PATCH` · `POST` | `/api/v1/batches/{id}` · `/cancel` · `/retry` | Batch status, cancel, retry |
+| `CRUD` · `POST` | `/api/v1/templates` · `/{id}/preview` | Message templates and preview |
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/notifications \
   -H 'Content-Type: application/json' -H 'Idempotency-Key: order-1042' \
   -d '{"channel":"sms","recipient":"+905551234567","content":"Your order has shipped","priority":"high"}'
 ```
+
+Templates: create one with `{"name":"order-shipped","channel":"sms","content":"Hi {{ name }}, order {{ order.id }} has shipped"}`,
+then send `{"channel":"sms","recipient":"+905551234567","template_id":"…","variables":{"name":"Jane","order":{"id":"A-1042"}}}`.
+The text is rendered when the notification is created, so later template edits never change messages already accepted.
 
 Validation: SMS uses E.164 numbers and up to 1600 characters, Email needs an address and a `subject`, Push needs a
 device token and up to 1000 characters. Errors share one format: `{"error": {"code", "message", "details"}}`.
@@ -116,7 +122,7 @@ were all delivered through retries.
 ## Development
 
 ```bash
-make test        # 147 tests (PostgreSQL + Redis, isolated test databases)
+make test        # 162 tests (PostgreSQL + Redis, isolated test databases)
 make coverage    # coverage summary
 make up-mock     # run with the mock provider
 make docs        # regenerate docs/openapi.json
