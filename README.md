@@ -145,5 +145,9 @@ make docs        # regenerate docs/openapi.json
 make help        # all commands
 ```
 
-CI runs lint, tests and a Docker Compose smoke test on every push. Settings such as
+Working with an AI agent? [`AGENTS.md`](AGENTS.md) (also loaded via [`CLAUDE.md`](CLAUDE.md)) and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) describe the code map, rules and flows; a Claude Code hook and a CI job
+make sure they are updated together with structural changes.
+
+CI runs lint, tests, an agent-docs check and a Docker Compose smoke test on every push. Settings such as
 `NOTIFICATION_RATE_LIMIT_PER_SECOND`, `NOTIFICATION_MAX_ATTEMPTS` and `WORKER_REPLICAS` are listed in [`.env.example`](.env.example).

@@ -88,6 +88,33 @@ jobs:
       - name: Run tests with coverage
         run: vendor/bin/phpunit --coverage-text --only-summary-for-coverage-text
 
+  docs-sync:
+    name: Agent docs in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: AGENTS.md / docs/ARCHITECTURE.md describe structural changes
+        env:
+          BEFORE: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            base="origin/$BASE_REF"
+          elif [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            base="$BEFORE"
+          else
+            echo "No previous commit to compare with; skipping."
+            exit 0
+          fi
+          if git log --format=%B "$base..HEAD" | grep -qF '[skip-docs]'; then
+            echo "Skipped by [skip-docs] in a commit message."
+            exit 0
+          fi
+          scripts/check-agent-docs.sh "$base"
+
   docker:
     name: Docker Compose smoke test
     runs-on: ubuntu-latest
