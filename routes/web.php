@@ -10,3 +10,6 @@ Route::get('/', fn () => response()->json([
 
 Route::get('/health', [ObservabilityController::class, 'health']);
 Route::get('/metrics', [ObservabilityController::class, 'metrics']);
+
+// Demo page: live status updates over WebSocket.
+Route::view('/realtime', 'realtime');

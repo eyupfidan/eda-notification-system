@@ -21,7 +21,7 @@
         <env name="APP_ENV" value="testing" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
-        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="BROADCAST_CONNECTION" value="null" force="true"/>
         <env name="CACHE_STORE" value="array" force="true"/>
         <env name="DB_CONNECTION" value="pgsql" force="true"/>
         <env name="DB_DATABASE" value="notifications_test" force="true"/>
@@ -43,6 +43,7 @@
         <server name="LOG_CHANNEL" value="null"/>
         <server name="QUEUE_CONNECTION" value="sync"/>
         <server name="REDIS_DB" value="15"/>
+        <server name="BROADCAST_CONNECTION" value="null"/>
         <server name="NOTIFICATION_PROVIDER_URL" value="https://provider.test/notify"/>
     </php>
 </phpunit>

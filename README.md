@@ -9,7 +9,7 @@
 ![Laravel](https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-162%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-169%20passing-2ea44f)
 ![Coverage](https://img.shields.io/badge/coverage-99.5%25-2ea44f)
 
 <img src="docs/architecture.svg" alt="Architecture" width="900">
@@ -26,6 +26,7 @@
 - **No duplicates:** `Idempotency-Key` support, atomic claiming of each delivery, idempotency key forwarded to the provider.
 - **Smart retries:** exponential backoff with jitter, `Retry-After` support, a circuit breaker per channel,
   manual and batch retry, and a recovery sweep for anything stuck.
+- **Real-time updates over WebSocket** (Laravel Reverb): subscribe to `notifications.{id}` or `batches.{id}`.
 - **Observable:** correlation ids from request to provider, JSON logs, `/metrics` (JSON + Prometheus) and `/health`.
 
 ## Quick start
@@ -41,6 +42,7 @@ docker compose up -d --build
 | API | http://localhost:8080/api/v1 |
 | API docs (Swagger) | http://localhost:8080/docs/api · [`docs/openapi.json`](docs/openapi.json) |
 | Health / Metrics | http://localhost:8080/health · http://localhost:8080/metrics |
+| Live status demo (WebSocket) | http://localhost:8080/realtime |
 
 **Provider.** Create a URL on [webhook.site](https://webhook.site) that answers `202` with
 `{"messageId": "<uuid>", "status": "accepted", "timestamp": "<ISO8601>"}`, then run:
@@ -112,6 +114,20 @@ A permanent failure, or running out of attempts, ends in `failed`. `scheduled`, 
 **Measured:** 1000 SMS with 8 workers in 19s, at most 100/s. With the mock failing 30% of calls, 300 notifications
 were all delivered through retries.
 
+## Real-time updates
+
+Every status change is pushed over WebSocket (Pusher protocol, so any Pusher client works) on
+`notifications.{id}` and `batches.{batchId}` as the `notification.status` event:
+`{"id", "batch_id", "channel", "status", "attempts", "next_retry_at", "last_error", "updated_at"}`.
+Batch cancel and retry also send `batch.updated` with the new counts. Broadcasting is best effort:
+if the WebSocket server is down, delivery goes on. Open http://localhost:8080/realtime and click
+**Send demo batch** to watch it live.
+
+```js
+const pusher = new Pusher('eda-local-key', { wsHost: 'localhost', wsPort: 8085, forceTLS: false, enabledTransports: ['ws'], cluster: 'local' });
+pusher.subscribe('batches.<batch-id>').bind('notification.status', e => console.log(e.id, e.status));
+```
+
 ## Observability
 
 - `X-Correlation-ID` is accepted or generated, returned, stored on the notification and present in every log line and provider call.
@@ -122,7 +138,7 @@ were all delivered through retries.
 ## Development
 
 ```bash
-make test        # 162 tests (PostgreSQL + Redis, isolated test databases)
+make test        # 169 tests (PostgreSQL + Redis, isolated test databases)
 make coverage    # coverage summary
 make up-mock     # run with the mock provider
 make docs        # regenerate docs/openapi.json

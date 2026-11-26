@@ -7,6 +7,7 @@ use App\Http\Middleware\ValidateIdempotencyKey;
 use App\Http\Requests\StoreBatchRequest;
 use App\Models\Notification;
 use App\Services\NotificationService;
+use App\Services\Realtime\StatusBroadcaster;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\HeaderParameter;
 use Dedoc\Scramble\Attributes\Response;
@@ -78,20 +79,17 @@ class BatchController extends Controller implements HasMiddleware
      *
      * Re-queues every `failed` notification of the batch with a fresh attempt budget.
      */
-    public function retry(string $batchId): JsonResponse
+    public function retry(string $batchId, StatusBroadcaster $broadcaster): JsonResponse
     {
         if ($this->notifications->batchSummary($batchId) === null) {
             abort(404, 'Batch not found.');
         }
 
         $retried = $this->notifications->retryBatch($batchId);
+        $summary = $this->notifications->batchSummary($batchId);
+        $broadcaster->batchUpdated($summary);
 
-        return response()->json([
-            'data' => [
-                'retried' => $retried,
-                ...$this->notifications->batchSummary($batchId),
-            ],
-        ], 202);
+        return response()->json(['data' => ['retried' => $retried, ...$summary]], 202);
     }
 
     /**
@@ -99,19 +97,16 @@ class BatchController extends Controller implements HasMiddleware
      *
      * Cancels every notification of the batch that has not started delivery yet.
      */
-    public function cancel(string $batchId): JsonResponse
+    public function cancel(string $batchId, StatusBroadcaster $broadcaster): JsonResponse
     {
         if ($this->notifications->batchSummary($batchId) === null) {
             abort(404, 'Batch not found.');
         }
 
         $cancelled = $this->notifications->cancelBatch($batchId);
+        $summary = $this->notifications->batchSummary($batchId);
+        $broadcaster->batchUpdated($summary);
 
-        return response()->json([
-            'data' => [
-                'cancelled' => $cancelled,
-                ...$this->notifications->batchSummary($batchId),
-            ],
-        ]);
+        return response()->json(['data' => ['cancelled' => $cancelled, ...$summary]]);
     }
 }

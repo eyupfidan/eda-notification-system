@@ -56,6 +56,13 @@ return [
     ],
 
     /*
+    | WebSocket port as seen from the browser (used by the /realtime demo page).
+    */
+    'realtime' => [
+        'public_port' => (int) env('REVERB_PUBLIC_PORT', 8085),
+    ],
+
+    /*
     | External provider (simulated with webhook.site).
     */
     'provider' => [

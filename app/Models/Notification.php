@@ -6,6 +6,7 @@ use App\Enums\Channel;
 use App\Enums\Priority;
 use App\Enums\Status;
 use App\Exceptions\InvalidStatusTransition;
+use App\Services\Realtime\StatusBroadcaster;
 use Database\Factories\NotificationFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -108,6 +109,8 @@ class Notification extends Model
         }
 
         $this->forceFill([...$this->timestampsFor($to), ...$attributes, 'status' => $to])->save();
+
+        app(StatusBroadcaster::class)->statusChanged($this);
     }
 
     /**
@@ -144,6 +147,8 @@ class Notification extends Model
         }
 
         $this->forceFill([...$values, 'status' => $to])->syncOriginal();
+
+        app(StatusBroadcaster::class)->statusChanged($this);
 
         return true;
     }

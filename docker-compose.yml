@@ -31,6 +31,15 @@ x-app: &app
     CACHE_STORE: redis
     SESSION_DRIVER: array
     NOTIFICATION_PROVIDER_URL: ${NOTIFICATION_PROVIDER_URL:-}
+    # Real-time updates (Laravel Reverb). Local-development credentials.
+    BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-reverb}
+    REVERB_APP_ID: eda-local
+    REVERB_APP_KEY: eda-local-key
+    REVERB_APP_SECRET: eda-local-secret
+    REVERB_HOST: reverb
+    REVERB_PORT: 8080
+    REVERB_SCHEME: http
+    REVERB_PUBLIC_PORT: ${REVERB_PUBLIC_PORT:-8085}
     NOTIFICATION_RATE_LIMIT_PER_SECOND: ${NOTIFICATION_RATE_LIMIT_PER_SECOND:-100}
     NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-5}
     NOTIFICATION_RETRY_BASE_DELAY: ${NOTIFICATION_RETRY_BASE_DELAY:-10}
@@ -85,6 +94,21 @@ services:
     depends_on:
       app:
         condition: service_healthy
+
+  # WebSocket server: clients subscribe to notifications.{id} / batches.{id}
+  reverb:
+    <<: *app
+    environment:
+      <<: *app-env
+      RUN_MIGRATIONS: "false"
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    ports:
+      - "${REVERB_PUBLIC_PORT:-8085}:8080"
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 8080) ? 0 : 1);"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   postgres:
     image: postgres:18-alpine
