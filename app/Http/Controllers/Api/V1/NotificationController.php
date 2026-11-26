@@ -9,11 +9,15 @@ use App\Http\Requests\StoreNotificationRequest;
 use App\Http\Resources\NotificationResource;
 use App\Models\Notification;
 use App\Services\NotificationService;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\HeaderParameter;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 
+#[Group('Notifications', weight: 0)]
 class NotificationController extends Controller implements HasMiddleware
 {
     public function __construct(private readonly NotificationService $notifications) {}
@@ -42,6 +46,12 @@ class NotificationController extends Controller implements HasMiddleware
      * the same key and payload returns the original notification (200,
      * `Idempotent-Replayed: true`) instead of creating a duplicate.
      */
+    #[HeaderParameter('Idempotency-Key', 'Makes retries safe: the same key + payload returns the original result instead of creating duplicates. 1-200 printable ASCII characters.', required: false, example: 'order-1042-shipped')]
+    #[HeaderParameter('X-Correlation-ID', 'Optional trace id, echoed back and attached to every log line of this request and its delivery.', required: false, example: 'checkout-7f3a')]
+    #[Response(202, 'Accepted: stored and queued for delivery. Body is the notification resource.')]
+    #[Response(200, 'Idempotent replay (`Idempotent-Replayed: true`): the notification created earlier with this key.')]
+    #[Response(400, 'Malformed Idempotency-Key header.')]
+    #[Response(422, 'Validation failed, or `idempotency_key_reused`: the key was used with a different payload.')]
     public function store(StoreNotificationRequest $request): JsonResponse
     {
         $result = $this->notifications->create(
@@ -72,6 +82,7 @@ class NotificationController extends Controller implements HasMiddleware
      * Only notifications that are not yet being delivered (scheduled, pending, queued)
      * can be cancelled; otherwise 409 is returned. Cancelling twice is a no-op.
      */
+    #[Response(409, 'The notification is already being delivered or reached a final state (`invalid_status_transition`).')]
     public function cancel(Notification $notification): NotificationResource
     {
         return NotificationResource::make($this->notifications->cancel($notification));
@@ -83,6 +94,7 @@ class NotificationController extends Controller implements HasMiddleware
      * Re-queues a notification in `failed` status with a fresh attempt budget (202).
      * Any other status returns 409.
      */
+    #[Response(409, 'Only notifications in `failed` status can be retried (`invalid_status_transition`).')]
     public function retry(Notification $notification): JsonResponse
     {
         return NotificationResource::make($this->notifications->retry($notification))

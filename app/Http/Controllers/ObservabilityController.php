@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Services\Observability\HealthChecker;
 use App\Services\Observability\MetricsCollector;
 use App\Services\Observability\PrometheusFormatter;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\Response as DocResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 
+#[Group('Observability', weight: 2)]
 class ObservabilityController extends Controller
 {
     /**
@@ -43,6 +46,7 @@ class ObservabilityController extends Controller
      * the service cannot accept notifications (database or Redis down), 200 otherwise;
      * `status` is `ok` or `degraded` (e.g. no worker running).
      */
+    #[DocResponse(503, 'Database or Redis unreachable: the service cannot accept notifications (`status: down`).')]
     public function health(HealthChecker $checker): JsonResponse
     {
         $health = $checker->check();

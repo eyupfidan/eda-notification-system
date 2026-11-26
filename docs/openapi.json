@@ -1,0 +1,1312 @@
+{
+    "openapi": "3.1.2",
+    "info": {
+        "title": "EDA Notification System API",
+        "version": "1.0.0",
+        "description": "Event-driven notification service: accepts SMS, Email and Push notifications, stores them\nand delivers them asynchronously through priority queues (high > normal > low), with a\nper-channel rate limit of 100 messages/second, automatic retries with exponential backoff,\nand real-time status tracking.\n\n**Conventions**\n- All notifications are processed asynchronously: create endpoints answer `202 Accepted`\n  and the delivery status can be followed with `GET /api/v1/notifications/{id}`.\n- Send an `Idempotency-Key` header on create requests to make client retries safe.\n- Every response carries an `X-Correlation-ID` header (send your own to trace a flow).\n- Errors share one envelope: `{\"error\": {\"code\": \"...\", \"message\": \"...\", \"details\": {...}}}`.\n\n**Notification lifecycle**\n\n`pending \u2192 queued \u2192 processing \u2192 sent`; temporary provider failures go back to `queued`\nwith `next_retry_at`; permanent failures (or exhausted attempts) end in `failed`.\n`scheduled`, `pending` and `queued` notifications can be cancelled."
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8080"
+        }
+    ],
+    "tags": [
+        {
+            "name": "Notifications"
+        },
+        {
+            "name": "Batches"
+        },
+        {
+            "name": "Observability"
+        }
+    ],
+    "paths": {
+        "/api/v1/notifications": {
+            "get": {
+                "operationId": "notification.index",
+                "description": "Filter by status, channel, priority, batch and creation date range. Uses cursor\npagination: follow `links.next` / `meta.next_cursor` to page through results.",
+                "summary": "List notifications",
+                "tags": [
+                    "Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#/components/schemas/Status"
+                        }
+                    },
+                    {
+                        "name": "channel",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#/components/schemas/Channel"
+                        }
+                    },
+                    {
+                        "name": "priority",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#/components/schemas/Priority"
+                        }
+                    },
+                    {
+                        "name": "batch_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated set of `NotificationResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/NotificationResource"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "properties": {
+                                                "first": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "next": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "first",
+                                                "last",
+                                                "prev",
+                                                "next"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "The \"cursor\" that points to the next set of items."
+                                                },
+                                                "prev_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "The \"cursor\" that points to the previous set of items."
+                                                }
+                                            },
+                                            "required": [
+                                                "path",
+                                                "per_page",
+                                                "next_cursor",
+                                                "prev_cursor"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "links",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "notification.store",
+                "description": "The notification is stored and queued for asynchronous delivery (202 Accepted).\nSend an `Idempotency-Key` header to make retries safe: repeating the request with\nthe same key and payload returns the original notification (200,\n`Idempotent-Replayed: true`) instead of creating a duplicate.",
+                "summary": "Create a notification",
+                "tags": [
+                    "Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Makes retries safe: the same key + payload returns the original result instead of creating duplicates. 1-200 printable ASCII characters.",
+                        "schema": {},
+                        "example": "order-1042-shipped"
+                    },
+                    {
+                        "name": "X-Correlation-ID",
+                        "in": "header",
+                        "description": "Optional trace id, echoed back and attached to every log line of this request and its delivery.",
+                        "schema": {},
+                        "example": "checkout-7f3a"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreNotificationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Idempotent replay (`Idempotent-Replayed: true`): the notification created earlier with this key.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed, or `idempotency_key_reused`: the key was used with a different payload.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Errors overview."
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "description": "A detailed description of each field that failed validation.",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted: stored and queued for delivery. Body is the notification resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Malformed Idempotency-Key header.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/{notification}": {
+            "get": {
+                "operationId": "notification.show",
+                "summary": "Get a notification with its delivery attempts",
+                "tags": [
+                    "Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "notification",
+                        "in": "path",
+                        "required": true,
+                        "description": "The notification ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`NotificationResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/NotificationResource"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "required": [
+                                                        "delivery_attempts"
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/{notification}/cancel": {
+            "patch": {
+                "operationId": "notification.cancel",
+                "description": "Only notifications that are not yet being delivered (scheduled, pending, queued)\ncan be cancelled; otherwise 409 is returned. Cancelling twice is a no-op.",
+                "summary": "Cancel a notification",
+                "tags": [
+                    "Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "notification",
+                        "in": "path",
+                        "required": true,
+                        "description": "The notification ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`NotificationResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/NotificationResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "409": {
+                        "description": "The notification is already being delivered or reached a final state (`invalid_status_transition`).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/{notification}/retry": {
+            "post": {
+                "operationId": "notification.retry",
+                "description": "Re-queues a notification in `failed` status with a fresh attempt budget (202).\nAny other status returns 409.",
+                "summary": "Retry a failed notification",
+                "tags": [
+                    "Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "notification",
+                        "in": "path",
+                        "required": true,
+                        "description": "The notification ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "`NotificationResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/NotificationResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "409": {
+                        "description": "Only notifications in `failed` status can be retried (`invalid_status_transition`).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/batch": {
+            "post": {
+                "operationId": "batch.store",
+                "description": "Accepts up to 1000 notifications. The batch is stored atomically (all or nothing)\nand every notification gets the same `batch_id`. Supports `Idempotency-Key`.",
+                "summary": "Create a batch of notifications",
+                "tags": [
+                    "Batches"
+                ],
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Makes retries safe: the same key + payload returns the original result instead of creating duplicates. 1-200 printable ASCII characters.",
+                        "schema": {},
+                        "example": "order-1042-shipped"
+                    },
+                    {
+                        "name": "X-Correlation-ID",
+                        "in": "header",
+                        "description": "Optional trace id, echoed back and attached to every log line of this request and its delivery.",
+                        "schema": {},
+                        "example": "checkout-7f3a"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreBatchRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Idempotent replay (`Idempotent-Replayed: true`): the batch created earlier with this key.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (more than 1000 items, or any invalid item: nothing is stored), or `idempotency_key_reused`.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Errors overview."
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "description": "A detailed description of each field that failed validation.",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted: the whole batch was stored atomically and queued.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Malformed Idempotency-Key header.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/batches/{batchId}": {
+            "get": {
+                "operationId": "batch.show",
+                "description": "Returns how many notifications of the batch are in each status.",
+                "summary": "Get batch status",
+                "tags": [
+                    "Batches"
+                ],
+                "parameters": [
+                    {
+                        "name": "batchId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "anyOf": [
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "batch_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "total": {
+                                                            "type": "integer"
+                                                        },
+                                                        "statuses": {
+                                                            "type": "object",
+                                                            "additionalProperties": {
+                                                                "type": "integer"
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "batch_id",
+                                                        "total",
+                                                        "statuses"
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "object"
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    }
+                }
+            }
+        },
+        "/api/v1/batches/{batchId}/cancel": {
+            "patch": {
+                "operationId": "batch.cancel",
+                "description": "Cancels every notification of the batch that has not started delivery yet.",
+                "summary": "Cancel a batch",
+                "tags": [
+                    "Batches"
+                ],
+                "parameters": [
+                    {
+                        "name": "batchId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "cancelled": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "integer"
+                                                        },
+                                                        {}
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "cancelled"
+                                            ],
+                                            "additionalProperties": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    }
+                }
+            }
+        },
+        "/api/v1/batches/{batchId}/retry": {
+            "post": {
+                "operationId": "batch.retry",
+                "description": "Re-queues every `failed` notification of the batch with a fresh attempt budget.",
+                "summary": "Retry failed notifications of a batch",
+                "tags": [
+                    "Batches"
+                ],
+                "parameters": [
+                    {
+                        "name": "batchId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "retried": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "integer"
+                                                        },
+                                                        {}
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "retried"
+                                            ],
+                                            "additionalProperties": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "operationId": "observability.health",
+                "description": "Checks database, Redis, queue, worker heartbeats and the scheduler. Returns 503 when\nthe service cannot accept notifications (database or Redis down), 200 otherwise;\n`status` is `ok` or `degraded` (e.g. no worker running).",
+                "summary": "Health check",
+                "tags": [
+                    "Observability"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Database or Redis unreachable: the service cannot accept notifications (`status: down`).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/metrics": {
+            "get": {
+                "operationId": "observability.metrics",
+                "description": "Queue depth per priority, notifications per status, success/failure rates, throughput\nand latency (p50/p95/p99) over a time window, circuit breaker state and active workers.\n`?window=1m|5m|15m|1h|24h` (default 5m). `?format=prometheus` returns the Prometheus\ntext format.",
+                "summary": "Real-time metrics",
+                "tags": [
+                    "Observability"
+                ],
+                "parameters": [
+                    {
+                        "name": "window",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "1m",
+                                "5m",
+                                "15m",
+                                "1h",
+                                "24h"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "format",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "json",
+                                "prometheus"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "generated_at": {
+                                            "type": "string"
+                                        },
+                                        "window": {
+                                            "anyOf": [
+                                                {
+                                                    "type": "string"
+                                                },
+                                                {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "5m"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        "queues": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "ready": {
+                                                        "type": "integer"
+                                                    },
+                                                    "delayed": {
+                                                        "type": "integer"
+                                                    },
+                                                    "reserved": {
+                                                        "type": "integer"
+                                                    },
+                                                    "total": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "ready",
+                                                    "delayed",
+                                                    "reserved",
+                                                    "total"
+                                                ]
+                                            }
+                                        },
+                                        "notifications_by_status": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "delivery": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        },
+                                        "provider_attempts": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        },
+                                        "circuit_breakers": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "state": {
+                                                        "type": "string"
+                                                    },
+                                                    "consecutive_failures": {
+                                                        "type": "integer"
+                                                    },
+                                                    "retry_after": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "state",
+                                                    "consecutive_failures",
+                                                    "retry_after"
+                                                ]
+                                            }
+                                        },
+                                        "workers": {
+                                            "type": "object",
+                                            "properties": {
+                                                "active": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "active"
+                                            ]
+                                        },
+                                        "rate_limit_per_second_per_channel": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "generated_at",
+                                        "window",
+                                        "queues",
+                                        "notifications_by_status",
+                                        "delivery",
+                                        "provider_attempts",
+                                        "circuit_breakers",
+                                        "workers",
+                                        "rate_limit_per_second_per_channel"
+                                    ]
+                                }
+                            },
+                            "text/plain; version=0.0.4": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "AttemptOutcome": {
+                "type": "string",
+                "enum": [
+                    "success",
+                    "retryable_failure",
+                    "permanent_failure"
+                ],
+                "title": "AttemptOutcome"
+            },
+            "Channel": {
+                "type": "string",
+                "enum": [
+                    "sms",
+                    "email",
+                    "push"
+                ],
+                "title": "Channel"
+            },
+            "NotificationAttemptResource": {
+                "type": "object",
+                "properties": {
+                    "attempt": {
+                        "type": "integer"
+                    },
+                    "outcome": {
+                        "$ref": "#/components/schemas/AttemptOutcome"
+                    },
+                    "http_status": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "duration_ms": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "provider_message_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "created_at": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "attempt",
+                    "outcome",
+                    "http_status",
+                    "duration_ms",
+                    "provider_message_id",
+                    "error",
+                    "created_at"
+                ],
+                "title": "NotificationAttemptResource"
+            },
+            "NotificationResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "batch_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "correlation_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "channel": {
+                        "$ref": "#/components/schemas/Channel"
+                    },
+                    "recipient": {
+                        "type": "string"
+                    },
+                    "subject": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "metadata": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "additionalProperties": {}
+                    },
+                    "priority": {
+                        "$ref": "#/components/schemas/Priority"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/Status"
+                    },
+                    "attempts": {
+                        "type": "integer"
+                    },
+                    "max_attempts": {
+                        "type": "integer"
+                    },
+                    "provider_message_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "last_error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "next_retry_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "scheduled_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "queued_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "sent_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "failed_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "cancelled_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "type": "string"
+                    },
+                    "delivery_attempts": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/NotificationAttemptResource"
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "batch_id",
+                    "correlation_id",
+                    "channel",
+                    "recipient",
+                    "subject",
+                    "content",
+                    "metadata",
+                    "priority",
+                    "status",
+                    "attempts",
+                    "max_attempts",
+                    "provider_message_id",
+                    "last_error",
+                    "next_retry_at",
+                    "scheduled_at",
+                    "queued_at",
+                    "sent_at",
+                    "failed_at",
+                    "cancelled_at",
+                    "created_at",
+                    "updated_at"
+                ],
+                "title": "NotificationResource"
+            },
+            "Priority": {
+                "type": "string",
+                "enum": [
+                    "high",
+                    "normal",
+                    "low"
+                ],
+                "title": "Priority"
+            },
+            "Status": {
+                "type": "string",
+                "description": "Notification lifecycle: scheduled \u2500\u2500\u25ba pending \u2500\u2500\u25ba queued \u2500\u2500\u25ba processing \u2500\u2500\u25ba sent       \u2502            \u2502           \u2502            \u2502       \u2502            \u2502           \u2502            \u251c\u2500\u2500\u25ba queued   (retryable failure, backoff)       \u2502            \u2502           \u2502            \u2514\u2500\u2500\u25ba failed   (permanent failure / attempts exhausted)       \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u25ba cancelled    queued \u2500\u2500\u25ba failed  (job gave up on unexpected errors)   failed \u2500\u2500\u25ba queued  (manual retry)\n",
+                "enum": [
+                    "scheduled",
+                    "pending",
+                    "queued",
+                    "processing",
+                    "sent",
+                    "failed",
+                    "cancelled"
+                ],
+                "title": "Status"
+            },
+            "StoreBatchRequest": {
+                "type": "object",
+                "properties": {
+                    "notifications": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "channel": {
+                                    "$ref": "#/components/schemas/Channel"
+                                },
+                                "recipient": {
+                                    "type": "string",
+                                    "maxLength": 320
+                                },
+                                "subject": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 255
+                                },
+                                "content": {
+                                    "type": "string"
+                                },
+                                "priority": {
+                                    "$ref": "#/components/schemas/Priority"
+                                },
+                                "metadata": {
+                                    "type": [
+                                        "array",
+                                        "null"
+                                    ],
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "maxItems": 50
+                                }
+                            },
+                            "required": [
+                                "channel",
+                                "recipient",
+                                "content"
+                            ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 1000
+                    }
+                },
+                "required": [
+                    "notifications"
+                ],
+                "title": "StoreBatchRequest"
+            },
+            "StoreNotificationRequest": {
+                "type": "object",
+                "properties": {
+                    "channel": {
+                        "$ref": "#/components/schemas/Channel"
+                    },
+                    "recipient": {
+                        "type": "string",
+                        "maxLength": 320
+                    },
+                    "subject": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 255
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "priority": {
+                        "$ref": "#/components/schemas/Priority"
+                    },
+                    "metadata": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "string"
+                        },
+                        "maxItems": 50
+                    }
+                },
+                "required": [
+                    "channel",
+                    "recipient",
+                    "content"
+                ],
+                "title": "StoreNotificationRequest"
+            }
+        },
+        "responses": {
+            "ValidationException": {
+                "description": "Validation error",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Errors overview."
+                                },
+                                "errors": {
+                                    "type": "object",
+                                    "description": "A detailed description of each field that failed validation.",
+                                    "additionalProperties": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "required": [
+                                "message",
+                                "errors"
+                            ]
+                        }
+                    }
+                }
+            },
+            "ModelNotFoundException": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Error overview."
+                                }
+                            },
+                            "required": [
+                                "message"
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -7,10 +7,14 @@ use App\Http\Middleware\ValidateIdempotencyKey;
 use App\Http\Requests\StoreBatchRequest;
 use App\Models\Notification;
 use App\Services\NotificationService;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\HeaderParameter;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 
+#[Group('Batches', weight: 1)]
 class BatchController extends Controller implements HasMiddleware
 {
     public function __construct(private readonly NotificationService $notifications) {}
@@ -26,6 +30,12 @@ class BatchController extends Controller implements HasMiddleware
      * Accepts up to 1000 notifications. The batch is stored atomically (all or nothing)
      * and every notification gets the same `batch_id`. Supports `Idempotency-Key`.
      */
+    #[HeaderParameter('Idempotency-Key', 'Makes retries safe: the same key + payload returns the original result instead of creating duplicates. 1-200 printable ASCII characters.', required: false, example: 'order-1042-shipped')]
+    #[HeaderParameter('X-Correlation-ID', 'Optional trace id, echoed back and attached to every log line of this request and its delivery.', required: false, example: 'checkout-7f3a')]
+    #[Response(202, 'Accepted: the whole batch was stored atomically and queued.')]
+    #[Response(200, 'Idempotent replay (`Idempotent-Replayed: true`): the batch created earlier with this key.')]
+    #[Response(400, 'Malformed Idempotency-Key header.')]
+    #[Response(422, 'Validation failed (more than 1000 items, or any invalid item: nothing is stored), or `idempotency_key_reused`.')]
     public function store(StoreBatchRequest $request): JsonResponse
     {
         $result = $this->notifications->createBatch(

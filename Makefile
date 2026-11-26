@@ -2,7 +2,7 @@
 COMPOSE := docker compose
 MOCK_URL := http://localhost:8090
 
-.PHONY: help up up-mock mock-stats mock-reset down build restart logs ps shell migrate fresh test coverage
+.PHONY: help up up-mock mock-stats mock-reset down build restart logs ps shell migrate fresh test coverage docs
 
 help: ## List available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -48,3 +48,7 @@ test: ## Run the test suite
 
 coverage: ## Run the test suite with a code coverage report
 	$(COMPOSE) exec app php -d pcov.enabled=1 vendor/bin/phpunit --coverage-text --only-summary-for-coverage-text
+
+docs: ## Regenerate the OpenAPI spec into docs/openapi.json
+	$(COMPOSE) exec -T app php artisan scramble:export --path=/tmp/openapi.json
+	$(COMPOSE) exec -T app cat /tmp/openapi.json > docs/openapi.json
