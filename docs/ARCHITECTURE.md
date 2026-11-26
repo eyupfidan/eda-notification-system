@@ -10,7 +10,7 @@ the user-facing [`README.md`](../README.md). Keep this file in sync with the cod
 | Service | Image / command | Role |
 |---|---|---|
 | `app` | PHP 8.4-FPM (`docker/php/Dockerfile`) | Laravel API; runs migrations on start |
-| `nginx` | nginx 1.27, host port `8080` | Front controller for `app` |
+| `nginx` | nginx 1.27, host port `8080` | Front controller for `app`; resolves `app` via Docker DNS per request, so recreating `app` never leaves a stale IP |
 | `worker` ×`WORKER_REPLICAS` | `queue:work redis --queue=high,normal,low` | Delivers notifications |
 | `scheduler` | `schedule:work` | `notifications:dispatch-scheduled` every 10 s, `notifications:recover` every minute |
 | `reverb` | `reverb:start`, host port `8085` | WebSocket server (Pusher protocol) |
