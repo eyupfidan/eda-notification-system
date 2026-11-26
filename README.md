@@ -9,7 +9,7 @@
 ![Laravel](https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-136%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-147%20passing-2ea44f)
 ![Coverage](https://img.shields.io/badge/coverage-99.5%25-2ea44f)
 
 <img src="docs/architecture.svg" alt="Architecture" width="900">
@@ -20,6 +20,7 @@
 
 - **Async by design:** the API stores notifications and answers `202`. Queue workers deliver them.
 - **Batches** of up to 1000 notifications, stored atomically (all or nothing).
+- **Scheduled delivery:** set `scheduled_at` (ISO 8601, up to 30 days ahead) and the notification is sent at that time, give or take 10 s.
 - **Priority queues** (`high > normal > low`) and a strict **100 msg/s per channel** limit shared by all workers.
 - **No duplicates:** `Idempotency-Key` support, atomic claiming of each delivery, idempotency key forwarded to the provider.
 - **Smart retries:** exponential backoff with jitter, `Retry-After` support, a circuit breaker per channel,
@@ -75,8 +76,8 @@ device token and up to 1000 characters. Errors share one format: `{"error": {"co
 
 ## How it works
 
-**Lifecycle:** `pending → queued → processing → sent`. A temporary failure goes back to `queued` with a retry time.
-A permanent failure, or running out of attempts, ends in `failed`. `pending` and `queued` notifications can be cancelled.
+**Lifecycle:** `(scheduled →) pending → queued → processing → sent`. A temporary failure goes back to `queued` with a retry time.
+A permanent failure, or running out of attempts, ends in `failed`. `scheduled`, `pending` and `queued` notifications can be cancelled.
 
 | Provider response | Result |
 |---|---|
@@ -96,6 +97,8 @@ A permanent failure, or running out of attempts, ends in `failed`. `pending` and
   Bursts become queue depth, not API latency.
 - **Circuit breaker:** 10 temporary failures in a row pause a channel for 30s without spending attempts.
 - **Recovery sweep** (every minute, `FOR UPDATE SKIP LOCKED`): re-queues notifications stuck after crashes or Redis loss.
+- **Scheduling in the database, not in Redis delays:** scheduled notifications stay cancellable, survive Redis loss and
+  use no queue memory while waiting. A command releases due ones every 10 s with `FOR UPDATE SKIP LOCKED`.
 - **Cursor pagination:** costs the same on page 1 and page 10 000 of a table with millions of rows.
 
 </details>
@@ -113,7 +116,7 @@ were all delivered through retries.
 ## Development
 
 ```bash
-make test        # 136 tests (PostgreSQL + Redis, isolated test databases)
+make test        # 147 tests (PostgreSQL + Redis, isolated test databases)
 make coverage    # coverage summary
 make up-mock     # run with the mock provider
 make docs        # regenerate docs/openapi.json

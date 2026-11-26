@@ -26,7 +26,7 @@ class NotificationService
     /**
      * Fields that must match when an Idempotency-Key is replayed.
      */
-    private const FINGERPRINT_FIELDS = ['channel', 'recipient', 'subject', 'content', 'priority'];
+    private const FINGERPRINT_FIELDS = ['channel', 'recipient', 'subject', 'content', 'priority', 'scheduled_at'];
 
     /**
      * @param  array<string, mixed>  $data  validated payload
@@ -41,8 +41,11 @@ class NotificationService
 
         try {
             $notification = DB::transaction(function () use ($data, $idempotencyKey) {
+                $attributes = $this->attributes($data);
+
                 $notification = Notification::create([
-                    ...$this->attributes($data),
+                    ...$attributes,
+                    'status' => $this->initialStatus($attributes),
                     'idempotency_key' => $idempotencyKey,
                     'correlation_id' => Context::get('correlation_id'),
                 ]);
@@ -88,7 +91,7 @@ class NotificationService
             'correlation_id' => $correlationId,
             ...$this->attributes($item),
             'metadata' => isset($item['metadata']) ? json_encode($item['metadata']) : null,
-            'status' => Status::Pending->value,
+            'status' => $this->initialStatus($this->attributes($item))->value,
             'attempts' => 0,
             'created_at' => $now,
             'updated_at' => $now,
@@ -251,7 +254,28 @@ class NotificationService
             'content' => $data['content'],
             'metadata' => $data['metadata'] ?? null,
             'priority' => $data['priority'] ?? Priority::Normal->value,
+            'scheduled_at' => $this->scheduledAt($data['scheduled_at'] ?? null),
         ];
+    }
+
+    /**
+     * Normalised to the application time zone (UTC): the database layer formats dates
+     * without their offset, so "15:00+03:00" must become "12:00" before it is stored.
+     */
+    private function scheduledAt(?string $value): ?Carbon
+    {
+        return $value !== null ? Carbon::parse($value)->setTimezone(config('app.timezone')) : null;
+    }
+
+    /**
+     * Only a time in the future schedules the notification; a past or current time means
+     * "send now" (the requested time is still stored, which keeps idempotent replays stable).
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function initialStatus(array $attributes): Status
+    {
+        return $attributes['scheduled_at']?->isFuture() ? Status::Scheduled : Status::Pending;
     }
 
     private function findByIdempotencyKey(string $key): ?Notification
@@ -309,10 +333,14 @@ class NotificationService
         $incoming = $this->attributes($data);
 
         foreach (self::FINGERPRINT_FIELDS as $field) {
-            $stored = $notification->{$field};
+            [$stored, $new] = [$notification->{$field}, $incoming[$field]];
             $stored = $stored instanceof \BackedEnum ? $stored->value : $stored;
 
-            if ($stored !== $incoming[$field]) {
+            if ($stored instanceof \DateTimeInterface || $new instanceof \DateTimeInterface) {
+                [$stored, $new] = [$stored?->getTimestamp(), $new?->getTimestamp()];
+            }
+
+            if ($stored !== $new) {
                 return false;
             }
         }

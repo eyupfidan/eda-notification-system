@@ -1198,6 +1198,14 @@
                                         "type": "string"
                                     },
                                     "maxItems": 50
+                                },
+                                "scheduled_at": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "format": "date-time",
+                                    "description": "Future time \u2192 stored as \"scheduled\" and sent then; past/now \u2192 sent right away."
                                 }
                             },
                             "required": [
@@ -1247,6 +1255,14 @@
                             "type": "string"
                         },
                         "maxItems": 50
+                    },
+                    "scheduled_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time",
+                        "description": "Future time \u2192 stored as \"scheduled\" and sent then; past/now \u2192 sent right away."
                     }
                 },
                 "required": [

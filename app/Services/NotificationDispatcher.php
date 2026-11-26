@@ -70,6 +70,15 @@ class NotificationDispatcher
     }
 
     /**
+     * Scheduled notifications whose time has come: scheduled → queued.
+     * At most SWEEP_LIMIT per call; the command calls it until nothing is due.
+     */
+    public function queueDueScheduled(Carbon $now): int
+    {
+        return $this->queueWhere(...$this->staleSelection(Status::Scheduled, 'scheduled_at', $now->copy()->addSecond()));
+    }
+
+    /**
      * Accepted but never queued (e.g. Redis was unreachable when the event fired).
      */
     public function requeueStalePending(Carbon $olderThan): int

@@ -25,6 +25,8 @@ trait NotificationRules
             "{$prefix}content" => ['required', 'string', new ContentWithinChannelLimit],
             "{$prefix}priority" => ['sometimes', 'string', Rule::enum(Priority::class)],
             "{$prefix}metadata" => ['sometimes', 'nullable', 'array', 'max:50'],
+            // Future time → stored as "scheduled" and sent then; past/now → sent right away.
+            "{$prefix}scheduled_at" => ['sometimes', 'nullable', 'date', 'before_or_equal:+30 days'],
         ];
     }
 }
