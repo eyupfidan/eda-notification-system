@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (Pint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+
+      - run: vendor/bin/pint --test
+
+  tests:
+    name: Tests (PostgreSQL + Redis)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: notifications_test
+          POSTGRES_USER: notifications
+          POSTGRES_PASSWORD: secret
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U notifications -d notifications_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: notifications
+      DB_PASSWORD: secret
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, redis, pcntl, intl, bcmath
+          coverage: pcov
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run tests with coverage
+        run: vendor/bin/phpunit --coverage-text --only-summary-for-coverage-text
+
+  docker:
+    name: Docker Compose smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the stack exactly as the README says (with the mock provider)
+        run: |
+          NOTIFICATION_PROVIDER_URL=http://mock-provider:8000/notify \
+            docker compose --profile mock up -d --build --wait --wait-timeout 240
+
+      - name: Health check
+        run: |
+          curl -sf http://localhost:8080/health | tee /dev/stderr | grep -E '"status":"(ok|degraded)"'
+
+      - name: Create a notification and wait until it is delivered
+        run: |
+          id=$(curl -sf -X POST http://localhost:8080/api/v1/notifications \
+            -H 'Content-Type: application/json' -H 'Accept: application/json' \
+            -d '{"channel":"sms","recipient":"+905551234567","content":"CI smoke test","priority":"high"}' \
+            | jq -r '.data.id')
+          echo "notification: $id"
+          for i in $(seq 1 30); do
+            status=$(curl -sf "http://localhost:8080/api/v1/notifications/$id" -H 'Accept: application/json' | jq -r '.data.status')
+            echo "status: $status"
+            [ "$status" = "sent" ] && exit 0
+            sleep 1
+          done
+          exit 1
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose --profile mock logs --tail 100
+
+      - name: Tear down
+        if: always()
+        run: docker compose --profile mock down -v

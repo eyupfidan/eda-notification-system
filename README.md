@@ -1,5 +1,7 @@
 # EDA Notification System
 
+[![CI](https://github.com/eyupfidan/eda-notification-system/actions/workflows/ci.yml/badge.svg)](https://github.com/eyupfidan/eda-notification-system/actions/workflows/ci.yml)
+
 An event-driven notification service built with **Laravel 13**. It accepts SMS, Email and Push
 notifications over a REST API, stores them in **PostgreSQL**, and delivers them asynchronously through
 **Redis** priority queues to an external provider. Delivery is rate limited per channel, failed
@@ -439,6 +441,11 @@ Laravel's built-in `/up` remains available as a plain liveness probe.
 make test       # 136 tests against PostgreSQL + Redis inside the container
 make coverage   # same, with a coverage summary (99.5% of lines)
 ```
+
+**CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and pull request:
+Pint lint, the full test suite with coverage against PostgreSQL 18 and Redis 7 service containers, and a
+Docker Compose smoke test that starts the stack exactly as described in [Quick start](#quick-start) and checks that a
+notification is delivered end to end.
 
 Tests run against a dedicated `notifications_test` database and Redis database `15`, never the application's data.
 The base test case refuses to run otherwise and flushes the test Redis database before each test.
