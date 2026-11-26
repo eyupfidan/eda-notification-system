@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\NotificationDispatcher;
+use App\Services\Observability\Heartbeats;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -16,8 +17,10 @@ use Illuminate\Support\Facades\Log;
 #[Description('Re-queue notifications stuck in pending, processing or queued state')]
 class RecoverStuckNotifications extends Command
 {
-    public function handle(NotificationDispatcher $dispatcher): int
+    public function handle(NotificationDispatcher $dispatcher, Heartbeats $heartbeats): int
     {
+        $heartbeats->recordScheduler();
+
         $config = config('notifications.recovery');
 
         $recovered = [

@@ -12,6 +12,7 @@ use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -43,6 +44,7 @@ class NotificationService
                 $notification = Notification::create([
                     ...$this->attributes($data),
                     'idempotency_key' => $idempotencyKey,
+                    'correlation_id' => Context::get('correlation_id'),
                 ]);
 
                 NotificationsAccepted::dispatch([$notification->id]);
@@ -77,11 +79,13 @@ class NotificationService
 
         $batchId = (string) Str::uuid7();
         $now = now();
+        $correlationId = Context::get('correlation_id');
 
         $rows = array_map(fn (array $item, int $index) => [
             'id' => (string) Str::uuid7(),
             'batch_id' => $batchId,
             'idempotency_key' => $idempotencyKey !== null ? $this->batchItemKey($idempotencyKey, $index) : null,
+            'correlation_id' => $correlationId,
             ...$this->attributes($item),
             'metadata' => isset($item['metadata']) ? json_encode($item['metadata']) : null,
             'status' => Status::Pending->value,

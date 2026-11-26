@@ -34,10 +34,12 @@ class WebhookSiteProvider implements NotificationProvider
                 ->timeout($this->timeoutSeconds)
                 ->connectTimeout(min(2.0, $this->timeoutSeconds))
                 ->acceptJson()
-                ->withHeaders([
+                ->withHeaders(array_filter([
                     // Lets the provider de-duplicate if we ever deliver the same notification twice.
                     'Idempotency-Key' => $notification->id,
-                ])
+                    // End-to-end tracing across our logs and the provider's.
+                    'X-Correlation-ID' => $notification->correlation_id,
+                ]))
                 ->post($this->url, [
                     'to' => $notification->recipient,
                     'channel' => $notification->channel->value,

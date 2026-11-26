@@ -2,6 +2,7 @@
 
 use App\Exceptions\IdempotencyConflict;
 use App\Exceptions\InvalidStatusTransition;
+use App\Http\Middleware\AssignCorrelationId;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -32,21 +33,21 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->prepend(AssignCorrelationId::class);
     })
     ->withExceptions(function (Exceptions $exceptions) use ($apiError): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
+            fn (Request $request) => $request->is('api/*', 'metrics', 'health') || $request->expectsJson(),
         );
 
         $exceptions->render(function (ValidationException $e, Request $request) use ($apiError) {
-            if ($request->is('api/*')) {
+            if ($request->is('api/*', 'metrics', 'health')) {
                 return $apiError(422, 'validation_failed', 'The given data was invalid.', $e->errors());
             }
         });
 
         $exceptions->render(function (NotFoundHttpException $e, Request $request) use ($apiError) {
-            if ($request->is('api/*')) {
+            if ($request->is('api/*', 'metrics', 'health')) {
                 $message = match (true) {
                     $e->getPrevious() instanceof ModelNotFoundException => 'Notification not found.',
                     $e->getMessage() !== '' => $e->getMessage(),
@@ -58,19 +59,19 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (InvalidStatusTransition $e, Request $request) use ($apiError) {
-            if ($request->is('api/*')) {
+            if ($request->is('api/*', 'metrics', 'health')) {
                 return $apiError(409, 'invalid_status_transition', $e->getMessage());
             }
         });
 
         $exceptions->render(function (IdempotencyConflict $e, Request $request) use ($apiError) {
-            if ($request->is('api/*')) {
+            if ($request->is('api/*', 'metrics', 'health')) {
                 return $apiError(422, 'idempotency_key_reused', $e->getMessage());
             }
         });
 
         $exceptions->render(function (HttpExceptionInterface $e, Request $request) use ($apiError) {
-            if ($request->is('api/*')) {
+            if ($request->is('api/*', 'metrics', 'health')) {
                 $status = $e->getStatusCode();
                 $text = SymfonyResponse::$statusTexts[$status] ?? 'HTTP Error';
 

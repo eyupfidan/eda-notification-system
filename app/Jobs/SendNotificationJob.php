@@ -17,6 +17,7 @@ use App\Services\Delivery\CircuitBreaker;
 use App\Services\Delivery\RetryPolicy;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -81,6 +82,14 @@ class SendNotificationJob implements ShouldQueue
         if ($notification === null) {
             return;
         }
+
+        // The notification keeps the id of the request that created it, so a job re-dispatched
+        // later (retry, recovery sweep) still logs under the original correlation id.
+        Context::add([
+            'correlation_id' => $notification->correlation_id ?? Context::get('correlation_id'),
+            'notification_id' => $notification->id,
+            'channel' => $this->channel->value,
+        ]);
 
         $attempt = $notification->attempts + 1;
 
