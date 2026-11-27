@@ -9,8 +9,8 @@
 ![Laravel](https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-175%20passing-2ea44f)
-![Coverage](https://img.shields.io/badge/coverage-99.5%25-2ea44f)
+![Tests](https://img.shields.io/badge/tests-182%20passing-2ea44f)
+![Coverage](https://img.shields.io/badge/coverage-97.8%25-2ea44f)
 
 <img src="docs/architecture.svg" alt="Architecture" width="900">
 
@@ -160,7 +160,7 @@ No host ports are published. Postgres and Redis keep their data in named volumes
 ## Development
 
 ```bash
-make test        # 175 tests (PostgreSQL + Redis, isolated test databases)
+make test        # 182 tests (PostgreSQL + Redis, isolated test databases)
 make coverage    # coverage summary
 make up-mock     # run with the mock provider
 make docs        # regenerate docs/openapi.json
