@@ -1330,6 +1330,29 @@
                                                         ]
                                                     }
                                                 },
+                                                "provider": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "fallback_configured": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "active": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "fallback",
+                                                                "primary"
+                                                            ]
+                                                        },
+                                                        "retry_primary_in": {},
+                                                        "reason": {}
+                                                    },
+                                                    "required": [
+                                                        "fallback_configured",
+                                                        "active",
+                                                        "retry_primary_in",
+                                                        "reason"
+                                                    ]
+                                                },
                                                 "workers": {
                                                     "type": "object",
                                                     "properties": {
@@ -1353,6 +1376,7 @@
                                                 "delivery",
                                                 "provider_attempts",
                                                 "circuit_breakers",
+                                                "provider",
                                                 "workers",
                                                 "rate_limit_per_second_per_channel"
                                             ]

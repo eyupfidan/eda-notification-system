@@ -59,6 +59,9 @@ class PrometheusFormatter
             $this->sample('notifications_circuit_open', ['channel' => $channel], $breaker['state'] === 'open' ? 1 : 0);
         }
 
+        $this->metric('notifications_provider_failover_active', 'gauge', '1 while messages go to the fallback provider.');
+        $this->sample('notifications_provider_failover_active', [], $m['provider']['active'] === 'fallback' ? 1 : 0);
+
         $this->metric('notifications_workers_active', 'gauge', 'Queue workers that sent a heartbeat recently.');
         $this->sample('notifications_workers_active', [], $m['workers']['active']);
 

@@ -62,7 +62,7 @@
     </section>
 
     <section class="card">
-        <h2 data-i18n="breakersTitle">Circuit breakers</h2>
+        <h2 data-i18n="breakersTitle">Circuit breakers and provider</h2>
         <div id="breakers"></div>
     </section>
 @endsection
@@ -85,10 +85,14 @@
             colChannel: 'Channel', colSent: 'Sent', colFailed: 'Failed', colSuccess: 'Success', colThroughput: 'Per second',
             colTotal: 'Calls', colOk: 'Successful', colRetryable: 'Retryable error', colPermanent: 'Permanent error',
             all: 'All',
-            breakersTitle: 'Circuit breakers',
+            breakersTitle: 'Circuit breakers and provider',
             open: 'Open', closed: 'Closed',
             breakerClosed: n => `${n} consecutive failures`,
             breakerOpen: s => `paused, retrying in ${s} s`,
+            provider: 'Provider',
+            providerPrimary: 'Primary', providerFallback: 'Fallback',
+            providerOnPrimary: f => f ? 'webhook.site; the mock provider takes over if its quota runs out' : 'webhook.site, no fallback configured',
+            providerOnFallback: s => `webhook.site unavailable (quota or expired URL); back to it in ${s} s`,
         },
         tr: {
             title: 'Metrikler',
@@ -105,10 +109,14 @@
             colChannel: 'Kanal', colSent: 'Gönderildi', colFailed: 'Başarısız', colSuccess: 'Başarı', colThroughput: 'Saniyede',
             colTotal: 'Çağrı', colOk: 'Başarılı', colRetryable: 'Tekrar denenebilir hata', colPermanent: 'Kalıcı hata',
             all: 'Toplam',
-            breakersTitle: 'Devre kesiciler',
+            breakersTitle: 'Devre kesiciler ve sağlayıcı',
             open: 'Açık', closed: 'Kapalı',
             breakerClosed: n => `art arda ${n} hata`,
             breakerOpen: s => `durduruldu, ${s} sn sonra tekrar denenecek`,
+            provider: 'Sağlayıcı',
+            providerPrimary: 'Birincil', providerFallback: 'Yedek',
+            providerOnPrimary: f => f ? 'webhook.site; kotası biterse mock sağlayıcı devralır' : 'webhook.site, yedek tanımlı değil',
+            providerOnFallback: s => `webhook.site kullanılamıyor (kota ya da süresi dolmuş URL); ${s} sn sonra tekrar denenecek`,
         },
     };
 
@@ -163,7 +171,14 @@
         Motion.patch($('breakers'), Object.entries(m.circuit_breakers).map(([c, b]) => `<div class="breaker">
             <div><span class="chan">${esc(channelName(c))}</span><small>${esc(b.state === 'open' ? t('breakerOpen')(b.retry_after) : t('breakerClosed')(b.consecutive_failures))}</small></div>
             <span class="badge ${b.state === 'open' ? 'down' : 'ok'}">${esc(t(b.state))}</span>
-        </div>`).join(''));
+        </div>`).join('') + (() => {
+            const p = m.provider;
+            const fallback = p.active === 'fallback';
+            return `<div class="breaker">
+                <div><span class="chan">${esc(t('provider'))}</span><small>${esc(fallback ? t('providerOnFallback')(p.retry_primary_in) : t('providerOnPrimary')(p.fallback_configured))}</small></div>
+                <span class="badge ${fallback ? 'degraded' : 'ok'}">${esc(t(fallback ? 'providerFallback' : 'providerPrimary'))}</span>
+            </div>`;
+        })());
     }
 
     const select = $('window');

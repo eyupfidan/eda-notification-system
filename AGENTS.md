@@ -44,7 +44,7 @@ refuses anything else and flushes Redis DB 15 before every test.
 | `app/Http/Middleware/` | `AssignCorrelationId`, `TraceRequests` (both global), `ValidateIdempotencyKey` |
 | `app/Services/NotificationService.php` | Create, batch, idempotency replay, cancel, retry, list, batch summary |
 | `app/Services/NotificationDispatcher.php` | **Every** transition into `queued` + job dispatch (`UPDATE … RETURNING`) |
-| `app/Services/Delivery/` | `RetryPolicy`, `CircuitBreaker`, `SlidingWindowRateLimiter` |
+| `app/Services/Delivery/` | `RetryPolicy`, `CircuitBreaker`, `SlidingWindowRateLimiter`, `ProviderFailover` (fallback switch in Redis) |
 | `app/Services/Templates/` | `TemplateRenderer`, `NotificationPayloadResolver` |
 | `app/Services/Realtime/StatusBroadcaster.php` | Best-effort WebSocket broadcasts |
 | `app/Services/Observability/` | `MetricsCollector`, `PrometheusFormatter`, `HealthChecker`, `Heartbeats` |
@@ -55,7 +55,7 @@ refuses anything else and flushes Redis DB 15 before every test.
 | `app/Events/` | `NotificationsAccepted` (after commit), `NotificationStatusChanged`, `BatchUpdated` (broadcast) |
 | `app/Models/` | `Notification` (state transitions), `NotificationAttempt`, `Template` |
 | `app/Enums/` | `Channel`, `Priority`, `Status` (state machine), `AttemptOutcome` |
-| `app/Providers/Notifications/` | `NotificationProvider` contract, `WebhookSiteProvider` |
+| `app/Providers/Notifications/` | `NotificationProvider` contract, `WebhookSiteProvider`, `FailoverProvider` (primary → fallback on 429/404/410) |
 | `app/Console/Commands/` | `notifications:dispatch-scheduled` (10 s), `notifications:recover` (1 min) |
 | `config/notifications.php` | All service tuning (limits, retry, circuit breaker, recovery, provider) |
 | `config/tracing.php` | OpenTelemetry on/off, OTLP endpoint, DB spans |

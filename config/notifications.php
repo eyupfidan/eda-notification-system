@@ -68,6 +68,11 @@ return [
     'provider' => [
         'url' => env('NOTIFICATION_PROVIDER_URL'),
         'timeout' => (float) env('NOTIFICATION_PROVIDER_TIMEOUT', 5),
+        // Optional fallback (e.g. the bundled mock provider) used when the primary answers
+        // 429 / 404 / 410: webhook.site's quota is used up or the URL has expired.
+        'fallback_url' => env('NOTIFICATION_FALLBACK_PROVIDER_URL'),
+        // Seconds to stay on the fallback before trying the primary again.
+        'failover_cooldown' => (int) env('NOTIFICATION_PROVIDER_FAILOVER_COOLDOWN', 300),
     ],
 
 ];

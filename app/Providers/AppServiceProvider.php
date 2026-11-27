@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Providers\Notifications\FailoverProvider;
 use App\Providers\Notifications\NotificationProvider;
 use App\Providers\Notifications\WebhookSiteProvider;
 use App\Services\Delivery\CircuitBreaker;
+use App\Services\Delivery\ProviderFailover;
 use App\Services\Delivery\RetryPolicy;
 use App\Services\Tracing\TracerProviderFactory;
 use App\Services\Tracing\Tracing;
@@ -26,15 +28,24 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(Tracing::class, fn () => new Tracing(TracerProviderFactory::make()));
 
-        $this->app->bind(NotificationProvider::class, fn ($app) => new WebhookSiteProvider(
-            $app->make(HttpFactory::class),
-            config('notifications.provider.url'),
-            (float) config('notifications.provider.timeout'),
-            $app->make(Tracing::class),
-        ));
+        $this->app->bind(NotificationProvider::class, function ($app) {
+            $provider = fn (?string $url) => new WebhookSiteProvider(
+                $app->make(HttpFactory::class),
+                $url,
+                (float) config('notifications.provider.timeout'),
+                $app->make(Tracing::class),
+            );
+            $primary = $provider(config('notifications.provider.url'));
+            $fallbackUrl = config('notifications.provider.fallback_url');
+
+            return blank($fallbackUrl)
+                ? $primary
+                : new FailoverProvider($primary, $provider($fallbackUrl), $app->make(ProviderFailover::class));
+        });
 
         $this->app->bind(RetryPolicy::class, fn () => RetryPolicy::fromConfig());
         $this->app->bind(CircuitBreaker::class, fn () => CircuitBreaker::fromConfig());
+        $this->app->bind(ProviderFailover::class, fn () => ProviderFailover::fromConfig());
     }
 
     public function boot(): void

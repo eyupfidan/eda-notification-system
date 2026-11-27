@@ -9,7 +9,7 @@
 ![Laravel](https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-183%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-193%20passing-2ea44f)
 ![Coverage](https://img.shields.io/badge/coverage-97.8%25-2ea44f)
 
 <img src="docs/architecture.svg" alt="Architecture" width="900">
@@ -54,7 +54,12 @@ echo "NOTIFICATION_PROVIDER_URL=https://webhook.site/<your-uuid>" > .env && dock
 ```
 
 > [!NOTE]
-> webhook.site's free plan accepts only ~50 requests per URL. For batches and load tests, run `make up-mock`
+> webhook.site's free plan accepts only ~50 requests per URL and deletes it after 7 days. Set
+> `NOTIFICATION_FALLBACK_PROVIDER_URL` and deliveries switch to that provider while webhook.site answers
+> `429` (quota) or `404` / `410` (expired), trying webhook.site again every 5 minutes. The Dokploy stack
+> does this with the bundled mock provider by default.
+>
+> For batches and load tests, run `make up-mock`
 > to use the bundled mock provider (same contract, no quota, optional failure injection such as
 > `MOCK_FAILURE_RATE=0.3`).
 
@@ -162,7 +167,7 @@ No host ports are published. Postgres and Redis keep their data in named volumes
 ## Development
 
 ```bash
-make test        # 183 tests (PostgreSQL + Redis, isolated test databases)
+make test        # 193 tests (PostgreSQL + Redis, isolated test databases)
 make coverage    # coverage summary
 make up-mock     # run with the mock provider
 make docs        # regenerate docs/openapi.json

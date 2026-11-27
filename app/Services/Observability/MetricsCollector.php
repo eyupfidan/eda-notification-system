@@ -6,6 +6,7 @@ use App\Enums\Channel;
 use App\Enums\Priority;
 use App\Enums\Status;
 use App\Services\Delivery\CircuitBreaker;
+use App\Services\Delivery\ProviderFailover;
 use Illuminate\Queue\RedisQueue;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class MetricsCollector
     public function __construct(
         private readonly CircuitBreaker $circuitBreaker,
         private readonly Heartbeats $heartbeats,
+        private readonly ProviderFailover $failover,
     ) {}
 
     /**
@@ -41,6 +43,7 @@ class MetricsCollector
             'delivery' => $this->delivery($since, $seconds),
             'provider_attempts' => $this->attempts($since),
             'circuit_breakers' => $this->circuitBreaker->snapshot(),
+            'provider' => $this->failover->snapshot(),
             'workers' => ['active' => $this->heartbeats->activeWorkers()],
             'rate_limit_per_second_per_channel' => (int) config('notifications.rate_limit.per_second'),
         ];

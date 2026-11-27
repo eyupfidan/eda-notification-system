@@ -5,6 +5,9 @@
 # - Secrets come from Dokploy's Environment tab; deploys fail fast when a required one is missing.
 #   Generate APP_KEY with: echo "base64:$(openssl rand -base64 32)"
 # - Optional: a domain on `jaeger` (port 16686) exposes the trace UI. It has no authentication.
+# - `mock-provider` (internal only) is the fallback provider: when webhook.site answers 429 (quota used
+#   up) or 404/410 (URL expired), deliveries switch to it for NOTIFICATION_PROVIDER_FAILOVER_COOLDOWN
+#   seconds. Set NOTIFICATION_FALLBACK_PROVIDER_URL to an empty value to turn this off.
 
 x-app: &app
   build:
@@ -34,6 +37,8 @@ x-app: &app
     CACHE_STORE: redis
     SESSION_DRIVER: array
     NOTIFICATION_PROVIDER_URL: ${NOTIFICATION_PROVIDER_URL:?Set NOTIFICATION_PROVIDER_URL in Dokploy (your webhook.site URL)}
+    NOTIFICATION_FALLBACK_PROVIDER_URL: ${NOTIFICATION_FALLBACK_PROVIDER_URL-http://mock-provider:8000/notify}
+    NOTIFICATION_PROVIDER_FAILOVER_COOLDOWN: ${NOTIFICATION_PROVIDER_FAILOVER_COOLDOWN:-300}
     # Real-time updates (Laravel Reverb). The server talks to Reverb inside the network;
     # browsers reach it through nginx on the public domain (REVERB_PUBLIC_PORT, 443 behind Traefik).
     BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-reverb}
@@ -113,6 +118,24 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # Fallback provider (same contract as webhook.site, no quota). Not published: only workers call it.
+  mock-provider:
+    image: php:8.4-cli-alpine
+    restart: unless-stopped
+    command: ["php", "-S", "0.0.0.0:8000", "/mock/server.php"]
+    environment:
+      PHP_CLI_SERVER_WORKERS: 16
+      MOCK_LATENCY_MS: ${MOCK_LATENCY_MS:-20-80}
+    volumes:
+      - ./docker/mock-provider:/mock:ro
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8000/health') ? 0 : 1);"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   jaeger:
     image: jaegertracing/jaeger:2.11.0
