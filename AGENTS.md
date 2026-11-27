@@ -22,6 +22,7 @@ Everything runs in Docker; nothing but Docker is needed on the host.
 |---|---|
 | Start the stack | `docker compose up -d --build` (or `make up`) |
 | Start with the local mock provider | `make up-mock` |
+| Production deploy (Dokploy, "Docker Compose" service) | `docker-compose.dokploy.yml`; see README → Deploying with Dokploy |
 | Rebuild app, workers, scheduler after code changes | `make restart` (the image has no bind mount) |
 | Run all tests | `make test` |
 | Coverage summary | `make coverage` |

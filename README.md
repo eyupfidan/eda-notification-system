@@ -140,6 +140,21 @@ pusher.subscribe('batches.<batch-id>').bind('notification.status', e => console.
   `POST /api/v1/notifications → notification.create → deliver sms → POST provider` plus DB queries in one trace.
   An incoming W3C `traceparent` is continued and forwarded to the provider.
 
+## Deploying with Dokploy
+
+Create a **Docker Compose** service (not an Application: the stack has nine containers) from this
+repository with Compose Path `./docker-compose.dokploy.yml`.
+
+1. **Environment:** set `APP_KEY` (`echo "base64:$(openssl rand -base64 32)"`), `APP_URL`
+   (`https://your-domain`), `DB_PASSWORD`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` and
+   `NOTIFICATION_PROVIDER_URL`. The deploy stops with a clear message if a required one is missing.
+2. **Domains:** add your domain to the `nginx` service, container port `80`, with HTTPS. WebSocket
+   traffic goes through the same domain (nginx proxies `/app` and `/apps` to Reverb).
+   Optionally add a domain to `jaeger` (port `16686`) for the trace UI; it has no authentication.
+3. Deploy. Migrations run when `app` starts; check `https://your-domain/health`.
+
+No host ports are published. Postgres and Redis keep their data in named volumes.
+
 ## Development
 
 ```bash

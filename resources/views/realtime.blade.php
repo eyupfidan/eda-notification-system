@@ -221,8 +221,9 @@
     const pusher = new Pusher(@json(config('broadcasting.connections.reverb.key')), {
         wsHost: window.location.hostname,
         wsPort: @json(config('notifications.realtime.public_port')),
-        forceTLS: false,
-        enabledTransports: ['ws'],
+        wssPort: @json(config('notifications.realtime.public_port')),
+        forceTLS: window.location.protocol === 'https:',
+        enabledTransports: ['ws', 'wss'],
         cluster: 'local',
     });
 

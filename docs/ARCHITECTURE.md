@@ -10,7 +10,7 @@ the user-facing [`README.md`](../README.md). Keep this file in sync with the cod
 | Service | Image / command | Role |
 |---|---|---|
 | `app` | PHP 8.4-FPM (`docker/php/Dockerfile`) | Laravel API; runs migrations on start |
-| `nginx` | nginx 1.27, host port `8080` | Front controller for `app`; resolves `app` via Docker DNS per request, so recreating `app` never leaves a stale IP |
+| `nginx` | nginx 1.27, host port `8080` | Front controller for `app`; proxies `/app` and `/apps` (WebSocket, Pusher HTTP API) to `reverb`; resolves upstreams via Docker DNS per request, so recreating a container never leaves a stale IP |
 | `worker` ×`WORKER_REPLICAS` | `queue:work redis --queue=high,normal,low` | Delivers notifications |
 | `scheduler` | `schedule:work` | `notifications:dispatch-scheduled` every 10 s, `notifications:recover` every minute |
 | `reverb` | `reverb:start`, host port `8085` | WebSocket server (Pusher protocol) |
@@ -22,6 +22,13 @@ the user-facing [`README.md`](../README.md). Keep this file in sync with the cod
 All PHP containers share one image and the `x-app` environment block in `docker-compose.yml`.
 The image is built with `build.network: host`: under WSL2, downloads from the default bridge network
 were seen to stall mid-transfer and leave `apk add` waiting forever. Running containers are unaffected.
+
+**Production (Dokploy):** `docker-compose.dokploy.yml` runs the same services without published host
+ports, the test-database init script or the mock provider. `APP_ENV=production`, and `APP_KEY`,
+`APP_URL`, `DB_PASSWORD`, `REVERB_APP_KEY` and `REVERB_APP_SECRET` are required (`${VAR:?}`), so a
+deploy without them fails at interpolation. The domain points at `nginx:80`; browsers reach Reverb
+through nginx on the same domain, with `REVERB_PUBLIC_PORT` (default `443` there) as the port the
+`/realtime` page connects to. The page switches to `wss` when it is served over HTTPS.
 
 ## Data model
 
