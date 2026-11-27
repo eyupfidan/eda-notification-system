@@ -9,7 +9,7 @@
 ![Laravel](https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-182%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-183%20passing-2ea44f)
 ![Coverage](https://img.shields.io/badge/coverage-97.8%25-2ea44f)
 
 <img src="docs/architecture.svg" alt="Architecture" width="900">
@@ -153,14 +153,16 @@ repository with Compose Path `./docker-compose.dokploy.yml`.
 2. **Domains:** add your domain to the `nginx` service, container port `80`, with HTTPS. WebSocket
    traffic goes through the same domain (nginx proxies `/app` and `/apps` to Reverb).
    Optionally add a domain to `jaeger` (port `16686`) for the trace UI; it has no authentication.
-3. Deploy. Migrations run when `app` starts; check `https://your-domain/health`.
+3. **Provider:** create a webhook.site URL that answers `202` with the JSON above and set it as
+   `NOTIFICATION_PROVIDER_URL`. Without it every notification fails right away, so the deploy refuses to start.
+4. Deploy. Migrations run when `app` starts; check `https://your-domain/health` and `https://your-domain/docs/api`.
 
 No host ports are published. Postgres and Redis keep their data in named volumes.
 
 ## Development
 
 ```bash
-make test        # 182 tests (PostgreSQL + Redis, isolated test databases)
+make test        # 183 tests (PostgreSQL + Redis, isolated test databases)
 make coverage    # coverage summary
 make up-mock     # run with the mock provider
 make docs        # regenerate docs/openapi.json

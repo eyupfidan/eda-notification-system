@@ -33,7 +33,7 @@ x-app: &app
     QUEUE_CONNECTION: redis
     CACHE_STORE: redis
     SESSION_DRIVER: array
-    NOTIFICATION_PROVIDER_URL: ${NOTIFICATION_PROVIDER_URL:-}
+    NOTIFICATION_PROVIDER_URL: ${NOTIFICATION_PROVIDER_URL:?Set NOTIFICATION_PROVIDER_URL in Dokploy (your webhook.site URL)}
     # Real-time updates (Laravel Reverb). The server talks to Reverb inside the network;
     # browsers reach it through nginx on the public domain (REVERB_PUBLIC_PORT, 443 behind Traefik).
     BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-reverb}

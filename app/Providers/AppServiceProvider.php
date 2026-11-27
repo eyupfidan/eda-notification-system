@@ -14,6 +14,7 @@ use Illuminate\Queue\Events\JobExceptionOccurred;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\ServiceProvider;
 use OpenTelemetry\API\Common\Time\Clock;
@@ -38,6 +39,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Scramble only serves /docs/api in the local environment unless this gate allows it.
+        // The API has no authentication and the spec holds no secrets, so the docs are public.
+        Gate::define('viewApiDocs', fn ($user = null) => true);
+
         $this->bootTracing();
     }
 

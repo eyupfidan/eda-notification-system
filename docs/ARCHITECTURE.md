@@ -27,8 +27,8 @@ there. It is opt-in because BuildKit (Compose bake, CI runners) rejects host net
 
 **Production (Dokploy):** `docker-compose.dokploy.yml` runs the same services without published host
 ports, the test-database init script or the mock provider. `APP_ENV=production`, and `APP_KEY`,
-`APP_URL`, `DB_PASSWORD`, `REVERB_APP_KEY` and `REVERB_APP_SECRET` are required (`${VAR:?}`), so a
-deploy without them fails at interpolation. The domain points at `nginx:80`; browsers reach Reverb
+`APP_URL`, `DB_PASSWORD`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` and `NOTIFICATION_PROVIDER_URL` are required
+(`${VAR:?}`), so a deploy without them fails at interpolation instead of failing every notification. The domain points at `nginx:80`; browsers reach Reverb
 through nginx on the same domain, with `REVERB_PUBLIC_PORT` (default `443` there) as the port the
 `/realtime` page connects to. The page switches to `wss` when it is served over HTTPS.
 
@@ -145,7 +145,7 @@ SQL by the dispatcher (pending → queued, scheduled → queued, batch cancel) d
 `/api/v1/notifications/{id}` (GET), `/cancel` (PATCH), `/retry` (POST),
 `/api/v1/batches/{id}` (GET), `/cancel` (PATCH), `/retry` (POST),
 `/api/v1/templates` (CRUD), `/api/v1/templates/{id}/preview` (POST),
-`/health`, `/metrics` (HTML dashboard or JSON, see Observability), `/realtime` (demo page, `resources/views/realtime.blade.php`: single Blade file), `/docs/api` (Swagger UI), `/up`.
+`/health`, `/metrics` (HTML dashboard or JSON, see Observability), `/realtime` (demo page, `resources/views/realtime.blade.php`: single Blade file), `/docs/api` (Swagger UI, public in every environment through the `viewApiDocs` gate in `AppServiceProvider`), `/up`.
 The browser pages share an English/Turkish toggle stored in `localStorage` (`ui.lang`) and link to each other.
 `resources/views/partials/transitions.blade.php` animates them: cross-document View Transitions between
 pages (sliding nav / language indicators), a cross-fade on language switch, and `Motion.patch(el, html)`,
