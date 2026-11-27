@@ -36,6 +36,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Correlation id first, so the request span can carry it.
         $middleware->prepend([AssignCorrelationId::class, TraceRequests::class]);
+        // The app is only reachable through nginx (and Traefik in production), which terminate
+        // TLS: trust their X-Forwarded-* headers so generated URLs (e.g. the OpenAPI server) use https.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions) use ($apiError): void {
         $exceptions->shouldRenderJsonWhen(
