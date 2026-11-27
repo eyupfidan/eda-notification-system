@@ -123,7 +123,7 @@ Every status change is pushed over WebSocket (Pusher protocol, so any Pusher cli
 `{"id", "batch_id", "channel", "status", "attempts", "next_retry_at", "last_error", "updated_at"}`.
 Batch cancel and retry also send `batch.updated` with the new counts. Broadcasting is best effort:
 if the WebSocket server is down, delivery goes on. Open http://localhost:8080/realtime and click
-**Send demo batch** to watch it live.
+**Send demo batch** to watch it live (the page has an English / Turkish switch).
 
 ```js
 const pusher = new Pusher('eda-local-key', { wsHost: 'localhost', wsPort: 8085, forceTLS: false, enabledTransports: ['ws'], cluster: 'local' });

@@ -110,6 +110,8 @@ class RealtimeTest extends TestCase
         $this->get('/realtime')
             ->assertOk()
             ->assertSee('Live notification status')
+            ->assertSee('Canlı bildirim durumu', false)
+            ->assertSee('data-lang="tr"', false)
             ->assertSee('pusher-js', false);
     }
 }
