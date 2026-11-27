@@ -128,7 +128,7 @@ jobs:
 
       - name: Health check
         run: |
-          curl -sf http://localhost:8080/health | tee /dev/stderr | grep -E '"status":"(ok|degraded)"'
+          curl -sf "http://localhost:8080/health?type=json" | tee /dev/stderr | grep -E '"status":"(ok|degraded)"'
 
       - name: Create a notification and wait until it is delivered
         run: |

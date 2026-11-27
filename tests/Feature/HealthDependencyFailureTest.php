@@ -36,4 +36,15 @@ class HealthDependencyFailureTest extends TestCase
             ->assertJsonPath('checks.redis.status', 'down')
             ->assertJsonPath('checks.database.status', 'ok');
     }
+
+    public function test_the_health_dashboard_keeps_the_503_status(): void
+    {
+        config(['database.connections.pgsql.port' => 1]);
+        DB::purge('pgsql');
+
+        $this->get('/health', ['Accept' => 'text/html'])
+            ->assertStatus(503)
+            ->assertViewIs('observability.health')
+            ->assertViewHas('health', fn (array $h) => $h['status'] === 'down');
+    }
 }

@@ -20,7 +20,10 @@
         header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
         h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -.01em; }
         .lead { color: var(--muted); margin: 0; max-width: 620px; }
-        .header-right { display: flex; gap: 10px; align-items: center; }
+        .header-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .links { display: flex; gap: 4px; padding: 3px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; }
+        .links a { padding: 4px 12px; border-radius: 999px; text-decoration: none; color: var(--muted); font-weight: 600; font-size: 12px; }
+        .links a.active { background: var(--accent-soft); color: var(--accent); }
 
         .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 13px; font-weight: 500; }
         .dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; }
@@ -74,6 +77,7 @@
         .chan { font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--muted); }
         .detail { color: var(--muted); max-width: 320px; word-break: break-word; }
     </style>
+    @include('partials.transitions')
 </head>
 <body>
 <main>
@@ -83,6 +87,11 @@
             <p class="lead" data-i18n="lead">Status changes are pushed over WebSocket (Laravel Reverb) the moment they happen. Watch a single notification, a whole batch, or send a demo batch to see it in action.</p>
         </div>
         <div class="header-right">
+            <nav class="links">
+                <a href="/health" data-i18n="navHealth">Health</a>
+                <a href="/metrics" data-i18n="navMetrics">Metrics</a>
+                <a href="/realtime" class="active" data-i18n="navRealtime">Live status</a>
+            </nav>
             <span id="conn" class="pill"><span class="dot"></span><span id="conn-text">connecting</span></span>
             <div class="lang" role="group" aria-label="Language">
                 <button type="button" data-lang="tr">TR</button>
@@ -144,6 +153,7 @@
     const i18n = {
         en: {
             title: 'Live notification status',
+            navHealth: 'Health', navMetrics: 'Metrics', navRealtime: 'Live status',
             lead: 'Status changes are pushed over WebSocket (Laravel Reverb) the moment they happen. Watch a single notification, a whole batch, or send a demo batch to see it in action.',
             demoTitle: 'Try it',
             demoHint: 'Creates 30 notifications (SMS, email, push) scheduled 5 seconds ahead and follows the batch live.',
@@ -168,6 +178,7 @@
         },
         tr: {
             title: 'Canlı bildirim durumu',
+            navHealth: 'Sağlık', navMetrics: 'Metrikler', navRealtime: 'Canlı durum',
             lead: 'Durum değişiklikleri gerçekleştiği anda WebSocket (Laravel Reverb) üzerinden iletilir. Tek bir bildirimi ya da bütün bir toplu gönderimi izleyin veya demo gönderimiyle deneyin.',
             demoTitle: 'Deneyin',
             demoHint: '5 saniye sonrasına planlanmış 30 bildirim (SMS, e-posta, push) oluşturur ve toplu gönderimi canlı izler.',
@@ -197,7 +208,7 @@
     const events = [];
     const subscribed = new Set();
     const $ = id => document.getElementById(id);
-    let lang = localStorage.getItem('realtime.lang')
+    let lang = localStorage.getItem('ui.lang') || localStorage.getItem('realtime.lang')
         || ((navigator.language || '').toLowerCase().startsWith('tr') ? 'tr' : 'en');
     let connState = 'connecting';
 
@@ -207,7 +218,7 @@
 
     function setLang(next) {
         lang = next;
-        localStorage.setItem('realtime.lang', next);
+        localStorage.setItem('ui.lang', next);
         document.documentElement.lang = next;
         document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
         document.querySelectorAll('[data-i18n-html]').forEach(el => el.innerHTML = t(el.dataset.i18nHtml));
@@ -241,10 +252,10 @@
         Object.values(latest).forEach(s => counts[s] = (counts[s] || 0) + 1);
         const total = Object.values(latest).length;
         $('total').textContent = t('total')(total);
-        $('bar').innerHTML = total ? statuses.filter(s => counts[s])
-            .map(s => `<span style="width:${counts[s] / total * 100}%;background:var(--c-${s})" title="${t('status')[s]}: ${counts[s]}"></span>`).join('') : '';
-        $('tiles').innerHTML = statuses
-            .map(s => `<div class="tile" style="--c:var(--c-${s})"><b>${counts[s]}</b><span>${t('status')[s]}</span></div>`).join('');
+        Motion.patch($('bar'), statuses
+            .map(s => `<span style="width:${total ? counts[s] / total * 100 : 0}%;background:var(--c-${s})" title="${t('status')[s]}: ${counts[s]}"></span>`).join(''));
+        Motion.patch($('tiles'), statuses
+            .map(s => `<div class="tile" style="--c:var(--c-${s})"><b>${counts[s]}</b><span>${t('status')[s]}</span></div>`).join(''));
     }
 
     function renderEvents() {
@@ -334,9 +345,9 @@
     $('demo').addEventListener('click', sendDemoBatch);
     $('sub-form').addEventListener('submit', ev => { ev.preventDefault(); subscribe($('channel').value.trim()); });
     $('clear').addEventListener('click', () => { events.length = 0; renderEvents(); });
-    document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
+    document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => Motion.swap(() => setLang(b.dataset.lang))));
 
-    setLang(lang);
+    Motion.quietly(() => setLang(lang));
 </script>
 </body>
 </html>

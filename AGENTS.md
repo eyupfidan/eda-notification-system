@@ -38,7 +38,8 @@ refuses anything else and flushes Redis DB 15 before every test.
 | Path | Responsibility |
 |---|---|
 | `app/Http/Controllers/Api/V1/` | `NotificationController`, `BatchController`, `TemplateController` (thin; delegate to services) |
-| `app/Http/Controllers/ObservabilityController.php` | `/metrics`, `/health` |
+| `app/Http/Controllers/ObservabilityController.php` | `/metrics`, `/health`: HTML dashboard by default, JSON with `?type=json` / `Accept: application/json` |
+| `resources/views/` | Browser pages: `realtime.blade.php`, `observability/` (`layout`, `health`, `metrics` dashboards, TR/EN), `partials/transitions` (page transitions, `Motion.patch` for animated data refresh) |
 | `app/Http/Requests/` | Validation. `Concerns/NotificationRules` holds the shared rules and the second pass (templates, email subject, length) |
 | `app/Http/Middleware/` | `AssignCorrelationId`, `TraceRequests` (both global), `ValidateIdempotencyKey` |
 | `app/Services/NotificationService.php` | Create, batch, idempotency replay, cancel, retry, list, batch summary |

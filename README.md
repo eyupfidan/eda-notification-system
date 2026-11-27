@@ -27,7 +27,7 @@
 - **Smart retries:** exponential backoff with jitter, `Retry-After` support, a circuit breaker per channel,
   manual and batch retry, and a recovery sweep for anything stuck.
 - **Real-time updates over WebSocket** (Laravel Reverb): subscribe to `notifications.{id}` or `batches.{id}`.
-- **Observable:** correlation ids, JSON logs, `/metrics` (JSON + Prometheus), `/health`, and
+- **Observable:** correlation ids, JSON logs, `/metrics` and `/health` (HTML dashboards, JSON, Prometheus), and
   **distributed tracing** (OpenTelemetry → Jaeger) from the API request through the queue to the provider.
 
 ## Quick start
@@ -42,7 +42,7 @@ docker compose up -d --build
 |---|---|
 | API | http://localhost:8080/api/v1 |
 | API docs (Swagger) | http://localhost:8080/docs/api · [`docs/openapi.json`](docs/openapi.json) |
-| Health / Metrics | http://localhost:8080/health · http://localhost:8080/metrics |
+| Health / Metrics dashboards | http://localhost:8080/health · http://localhost:8080/metrics (JSON: `?type=json`) |
 | Live status demo (WebSocket) | http://localhost:8080/realtime |
 | Traces (Jaeger) | http://localhost:16686 |
 
@@ -136,6 +136,8 @@ pusher.subscribe('batches.<batch-id>').bind('notification.status', e => console.
 - `GET /metrics?window=5m`: queue depth, status counts, success/failure rates, throughput, p50/p95/p99 latency, circuit state.
   Add `&format=prometheus` for Prometheus.
 - `GET /health`: database, Redis, queue, workers and scheduler. Returns `503` if DB or Redis is down.
+- Both open as auto-refreshing dashboards in a browser (English / Turkish). Add `?type=json` (or send
+  `Accept: application/json`) to get the JSON; `?type=html` forces the dashboard.
 - **Tracing:** every response has `X-Trace-Id`; open it in Jaeger (http://localhost:16686) to see
   `POST /api/v1/notifications → notification.create → deliver sms → POST provider` plus DB queries in one trace.
   An incoming W3C `traceparent` is continued and forwarded to the provider.

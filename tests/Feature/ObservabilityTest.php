@@ -151,4 +151,62 @@ class ObservabilityTest extends TestCase
 
         $this->assertSame(0, app(Heartbeats::class)->activeWorkers());
     }
+
+    // ------------------------------------------------------- html / json switch
+
+    public function test_browsers_get_the_metrics_dashboard(): void
+    {
+        $this->get('/metrics?window=1h', ['Accept' => 'text/html'])
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/html; charset=utf-8')
+            ->assertViewIs('observability.metrics')
+            ->assertViewHas('metrics', fn (array $m) => $m['window'] === '1h')
+            ->assertSee('Queue depth')
+            ->assertSee('Kuyruk derinliği', false);
+    }
+
+    public function test_type_json_returns_the_metrics_json_without_an_accept_header(): void
+    {
+        $this->seedTraffic();
+
+        $this->get('/metrics?type=json')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertJsonPath('window', '5m')
+            ->assertJsonPath('notifications_by_status.sent', 5);
+    }
+
+    public function test_type_html_wins_over_an_accept_json_header(): void
+    {
+        $this->getJson('/metrics?type=html')->assertOk()->assertViewIs('observability.metrics');
+        $this->getJson('/health?type=html')->assertViewIs('observability.health');
+    }
+
+    public function test_unknown_type_is_rejected(): void
+    {
+        $this->get('/metrics?type=xml')
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'validation_failed');
+
+        $this->get('/health?type=xml')->assertStatus(422);
+    }
+
+    public function test_browsers_get_the_health_dashboard(): void
+    {
+        $this->get('/health', ['Accept' => 'text/html'])
+            ->assertOk()
+            ->assertViewIs('observability.health')
+            ->assertViewHas('health', fn (array $h) => $h['status'] === 'degraded')
+            ->assertSee('Service health')
+            ->assertSee('Servis sağlığı', false);
+    }
+
+    public function test_type_json_returns_the_health_json_without_an_accept_header(): void
+    {
+        $this->get('/health?type=json')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertJsonPath('status', 'degraded')
+            ->assertJsonStructure(['status', 'timestamp', 'checks' => ['database', 'redis', 'queue', 'workers', 'scheduler']]);
+    }
 }

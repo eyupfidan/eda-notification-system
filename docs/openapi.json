@@ -1145,10 +1145,23 @@
         "/health": {
             "get": {
                 "operationId": "observability.health",
-                "description": "Checks database, Redis, queue, worker heartbeats and the scheduler. Returns 503 when\nthe service cannot accept notifications (database or Redis down), 200 otherwise;\n`status` is `ok` or `degraded` (e.g. no worker running).",
+                "description": "Checks database, Redis, queue, worker heartbeats and the scheduler. Returns 503 when\nthe service cannot accept notifications (database or Redis down), 200 otherwise;\n`status` is `ok` or `degraded` (e.g. no worker running). Returns JSON with `?type=json`\nor an `Accept: application/json` header, otherwise an HTML dashboard (same status code).",
                 "summary": "Health check",
                 "tags": [
                     "Observability"
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "json",
+                                "html"
+                            ]
+                        }
+                    }
                 ],
                 "responses": {
                     "200": {
@@ -1156,10 +1169,16 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "string"
+                                    "type": [
+                                        "object",
+                                        "string"
+                                    ]
                                 }
                             }
                         }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "503": {
                         "description": "Database or Redis unreachable: the service cannot accept notifications (`status: down`).",
@@ -1177,7 +1196,7 @@
         "/metrics": {
             "get": {
                 "operationId": "observability.metrics",
-                "description": "Queue depth per priority, notifications per status, success/failure rates, throughput\nand latency (p50/p95/p99) over a time window, circuit breaker state and active workers.\n`?window=1m|5m|15m|1h|24h` (default 5m). `?format=prometheus` returns the Prometheus\ntext format.",
+                "description": "Queue depth per priority, notifications per status, success/failure rates, throughput\nand latency (p50/p95/p99) over a time window, circuit breaker state and active workers.\n`?window=1m|5m|15m|1h|24h` (default 5m). Returns JSON with `?type=json` or an\n`Accept: application/json` header, otherwise an HTML dashboard. `?format=prometheus`\nreturns the Prometheus text format.",
                 "summary": "Real-time metrics",
                 "tags": [
                     "Observability"
@@ -1207,6 +1226,17 @@
                                 "prometheus"
                             ]
                         }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "json",
+                                "html"
+                            ]
+                        }
                     }
                 ],
                 "responses": {
@@ -1215,111 +1245,118 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "generated_at": {
-                                            "type": "string"
+                                    "anyOf": [
+                                        {
+                                            "type": "object"
                                         },
-                                        "window": {
-                                            "anyOf": [
-                                                {
-                                                    "type": "string"
-                                                },
-                                                {
-                                                    "type": "string",
-                                                    "enum": [
-                                                        "5m"
-                                                    ]
-                                                }
-                                            ]
-                                        },
-                                        "queues": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "ready": {
-                                                        "type": "integer"
-                                                    },
-                                                    "delayed": {
-                                                        "type": "integer"
-                                                    },
-                                                    "reserved": {
-                                                        "type": "integer"
-                                                    },
-                                                    "total": {
-                                                        "type": "integer"
-                                                    }
-                                                },
-                                                "required": [
-                                                    "ready",
-                                                    "delayed",
-                                                    "reserved",
-                                                    "total"
-                                                ]
-                                            }
-                                        },
-                                        "notifications_by_status": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "string"
-                                            }
-                                        },
-                                        "delivery": {
-                                            "type": "object",
-                                            "additionalProperties": {}
-                                        },
-                                        "provider_attempts": {
-                                            "type": "object",
-                                            "additionalProperties": {}
-                                        },
-                                        "circuit_breakers": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "state": {
-                                                        "type": "string"
-                                                    },
-                                                    "consecutive_failures": {
-                                                        "type": "integer"
-                                                    },
-                                                    "retry_after": {
-                                                        "type": "integer"
-                                                    }
-                                                },
-                                                "required": [
-                                                    "state",
-                                                    "consecutive_failures",
-                                                    "retry_after"
-                                                ]
-                                            }
-                                        },
-                                        "workers": {
+                                        {
                                             "type": "object",
                                             "properties": {
-                                                "active": {
+                                                "generated_at": {
+                                                    "type": "string"
+                                                },
+                                                "window": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "string"
+                                                        },
+                                                        {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "5m"
+                                                            ]
+                                                        }
+                                                    ]
+                                                },
+                                                "queues": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "ready": {
+                                                                "type": "integer"
+                                                            },
+                                                            "delayed": {
+                                                                "type": "integer"
+                                                            },
+                                                            "reserved": {
+                                                                "type": "integer"
+                                                            },
+                                                            "total": {
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "ready",
+                                                            "delayed",
+                                                            "reserved",
+                                                            "total"
+                                                        ]
+                                                    }
+                                                },
+                                                "notifications_by_status": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "delivery": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                },
+                                                "provider_attempts": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                },
+                                                "circuit_breakers": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "state": {
+                                                                "type": "string"
+                                                            },
+                                                            "consecutive_failures": {
+                                                                "type": "integer"
+                                                            },
+                                                            "retry_after": {
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "state",
+                                                            "consecutive_failures",
+                                                            "retry_after"
+                                                        ]
+                                                    }
+                                                },
+                                                "workers": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "active": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "active"
+                                                    ]
+                                                },
+                                                "rate_limit_per_second_per_channel": {
                                                     "type": "integer"
                                                 }
                                             },
                                             "required": [
-                                                "active"
+                                                "generated_at",
+                                                "window",
+                                                "queues",
+                                                "notifications_by_status",
+                                                "delivery",
+                                                "provider_attempts",
+                                                "circuit_breakers",
+                                                "workers",
+                                                "rate_limit_per_second_per_channel"
                                             ]
-                                        },
-                                        "rate_limit_per_second_per_channel": {
-                                            "type": "integer"
                                         }
-                                    },
-                                    "required": [
-                                        "generated_at",
-                                        "window",
-                                        "queues",
-                                        "notifications_by_status",
-                                        "delivery",
-                                        "provider_attempts",
-                                        "circuit_breakers",
-                                        "workers",
-                                        "rate_limit_per_second_per_channel"
                                     ]
                                 }
                             },
