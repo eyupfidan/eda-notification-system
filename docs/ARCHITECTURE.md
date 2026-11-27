@@ -20,8 +20,10 @@ the user-facing [`README.md`](../README.md). Keep this file in sync with the cod
 | `mock-provider` (profile `mock`) | `php -S` on `docker/mock-provider/server.php`, host port `8090` | Provider stand-in with failure injection |
 
 All PHP containers share one image and the `x-app` environment block in `docker-compose.yml`.
-The image is built with `build.network: host`: under WSL2, downloads from the default bridge network
-were seen to stall mid-transfer and leave `apk add` waiting forever. Running containers are unaffected.
+The build network is `${BUILD_NETWORK:-default}`. Under WSL2, downloads from the default bridge network
+were seen to stall mid-transfer and leave `apk add` waiting forever; set `BUILD_NETWORK=host` in `.env`
+there. It is opt-in because BuildKit (Compose bake, CI runners) rejects host networking without the
+`network.host` entitlement, which broke the CI smoke test. Running containers are unaffected.
 
 **Production (Dokploy):** `docker-compose.dokploy.yml` runs the same services without published host
 ports, the test-database init script or the mock provider. `APP_ENV=production`, and `APP_KEY`,
