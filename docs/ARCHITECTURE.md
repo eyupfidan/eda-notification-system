@@ -20,6 +20,8 @@ the user-facing [`README.md`](../README.md). Keep this file in sync with the cod
 | `mock-provider` (profile `mock`) | `php -S` on `docker/mock-provider/server.php`, host port `8090` | Provider stand-in with failure injection |
 
 All PHP containers share one image and the `x-app` environment block in `docker-compose.yml`.
+The image is built with `build.network: host`: under WSL2, downloads from the default bridge network
+were seen to stall mid-transfer and leave `apk add` waiting forever. Running containers are unaffected.
 
 ## Data model
 

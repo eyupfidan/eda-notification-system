@@ -6,6 +6,9 @@ x-app: &app
   build:
     context: .
     dockerfile: docker/php/Dockerfile
+    # Build on the host network: under WSL2, downloads from the default bridge network can
+    # stall mid-transfer and leave `apk add` waiting forever.
+    network: host
   image: eda-notification-system:local
   restart: unless-stopped
   environment: &app-env
